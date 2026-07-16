@@ -125,22 +125,22 @@ footer a{color:var(--navy);text-decoration:none;}
       </div>
 
       <div class="fg" id="wrap_pay">
-        <label id="lbl_pay">דמי פתיחת תיק (₪ לפני מע"מ) <span class="req">*</span></label>
-        <input type="number" id="oneTimePayment" placeholder="4000" min="0" dir="ltr" style="text-align:right">
+        <label id="lbl_pay">דמי פתיחת תיק <span class="opt" style="font-weight:400;color:var(--gray);font-size:12px;">(לא כולל מע"מ)</span> <span class="req">*</span></label>
+        <input type="text" id="oneTimePayment" inputmode="decimal" dir="ltr" style="text-align:right">
         <div class="hint" id="hint_pay">דמי פתיחת תיק – יופיע בטבלת שכר הטרחה</div>
         <div class="field-error" id="e_pay">שדה חובה</div>
       </div>
 
       <div class="fg">
-        <label>מינימום שכר הצלחה (₪ לפני מע"מ) <span class="req">*</span></label>
-        <input type="number" id="minFee" placeholder="50000" min="0" dir="ltr" style="text-align:right">
+        <label>מינימום שכר הצלחה <span class="opt" style="font-weight:400;color:var(--gray);font-size:12px;">(לא כולל מע"מ)</span> <span class="req">*</span></label>
+        <input type="text" id="minFee" inputmode="decimal" dir="ltr" style="text-align:right">
         <div class="hint">הסכום המינימלי לשכר ההצלחה – יופיע בטבלה ובגוף ההסכם (יחד עם אחוז העמלה, הגבוה מביניהם)</div>
         <div class="field-error" id="e_minfee">שדה חובה</div>
       </div>
 
       <div class="fg">
-        <label id="lbl_comm">אחוז עמלה מהעסקה (%) <span class="req">*</span></label>
-        <input type="number" id="commissionPct" placeholder="5" min="0" max="100" step="0.1" dir="ltr" style="text-align:right">
+        <label id="lbl_comm">אחוז עמלה מהעסקה <span class="req">*</span></label>
+        <input type="text" id="commissionPct" inputmode="decimal" dir="ltr" style="text-align:right">
         <div class="hint" id="hint_comm">יופיע בסעיף שכר הטרחה בגוף ההסכם</div>
         <div class="field-error" id="e_comm">שדה חובה</div>
       </div>
@@ -214,6 +214,22 @@ const SIGNING_URL_BUYER  = 'https://baruchezon.github.io/bsd-contracts/bsd-contr
 let currentURL = '';
 let agreementType = 'seller';
 
+function numFrom(id) {
+  const raw = document.getElementById(id).value || '';
+  const n = parseFloat(raw.replace(/[^\d.]/g, ''));
+  return isNaN(n) ? 0 : n;
+}
+function formatMoney(id) {
+  const el = document.getElementById(id);
+  const n = numFrom(id);
+  el.value = n.toLocaleString('he-IL') + ' ₪';
+}
+function formatPercent(id) {
+  const el = document.getElementById(id);
+  const n = numFrom(id);
+  el.value = n + '%';
+}
+
 const TYPE_TEXT = {
   seller: {
     nameLabel: 'שם הלקוח / המוכר',
@@ -224,7 +240,7 @@ const TYPE_TEXT = {
     payPlaceholder: '4000',
     commHint: 'יופיע בסעיף שכר הטרחה בגוף ההסכם (50,000 ₪ או % משווי העסקה)',
     previewLabel: 'מוכר עסק',
-    waIntro: 'הכנתי עבורך הסכם התקשרות מסודר עם BSD Business Brokers Israel לליווי תהליך מכירת העסק.',
+    waIntro: 'איזה כיף שהחלטת לקחת את הצעד הזה - אנחנו ב-BSD כבר מתרגשים ללוות אותך לעסקה הכי טובה שיש! 😊🚀',
   },
   buyer: {
     nameLabel: 'שם הלקוח / הקונה',
@@ -235,7 +251,7 @@ const TYPE_TEXT = {
     payPlaceholder: '0',
     commHint: 'יופיע בסעיף שכר הטרחה: 50,000 ₪ או % משווי העסקה – הגבוה מבין השניים',
     previewLabel: 'קונה פוטנציאלי',
-    waIntro: 'הכנתי עבורך הסכם התקשרות מסודר עם BSD Business Brokers Israel לליווי תהליך איתור ורכישת עסק.',
+    waIntro: 'איזה יופי שאתה בדרך לעסק החדש שלך - אנחנו ב-BSD נשמח ללוות אותך צעד אחר צעד עד לעסקה הנכונה! 😊🤝',
   }
 };
 
@@ -258,7 +274,12 @@ function setType(type) {
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('agreementDate').value = new Date().toISOString().split('T')[0];
-  document.getElementById('minFee').value = 50000;
+  document.getElementById('oneTimePayment').value = '4,000 ₪';
+  document.getElementById('minFee').value = '50,000 ₪';
+  document.getElementById('commissionPct').value = '5%';
+  document.getElementById('oneTimePayment').addEventListener('blur', () => formatMoney('oneTimePayment'));
+  document.getElementById('minFee').addEventListener('blur', () => formatMoney('minFee'));
+  document.getElementById('commissionPct').addEventListener('blur', () => formatPercent('commissionPct'));
   setType('seller');
   ['clientName','clientPhone','businessName','oneTimePayment','minFee','commissionPct','agreementDate','notes'].forEach(id =>
     document.getElementById(id).addEventListener('input', updatePreview));
@@ -270,9 +291,9 @@ function updatePreview() {
   const name  = document.getElementById('clientName').value.trim();
   const phone = document.getElementById('clientPhone').value.trim();
   const biz   = document.getElementById('businessName').value.trim();
-  const pay   = document.getElementById('oneTimePayment').value.trim();
-  const minFee = document.getElementById('minFee').value.trim();
-  const comm  = document.getElementById('commissionPct').value.trim();
+  const pay   = numFrom('oneTimePayment');
+  const minFee = numFrom('minFee');
+  const comm  = numFrom('commissionPct');
   const date  = document.getElementById('agreementDate').value;
   const notes = document.getElementById('notes').value.trim();
   const edit  = document.getElementById('allowNameEdit').checked;
@@ -280,9 +301,9 @@ function updatePreview() {
   document.getElementById('pv_name').textContent  = name||'–';
   document.getElementById('pv_phone').textContent = phone||'–';
   document.getElementById('pv_biz').textContent   = biz||'–';
-  document.getElementById('pv_pay').textContent   = pay ? Number(pay).toLocaleString('he-IL')+' ₪ + מע"מ' : '–';
-  document.getElementById('pv_minfee').textContent = minFee ? Number(minFee).toLocaleString('he-IL')+' ₪ + מע"מ' : '–';
-  document.getElementById('pv_comm').textContent  = comm ? comm+'%' : '–';
+  document.getElementById('pv_pay').textContent   = pay.toLocaleString('he-IL')+' ₪ (לא כולל מע"מ)';
+  document.getElementById('pv_minfee').textContent = minFee.toLocaleString('he-IL')+' ₪ (לא כולל מע"מ)';
+  document.getElementById('pv_comm').textContent  = comm+'%';
   if (date) { const [y,m,d]=date.split('-'); document.getElementById('pv_date').textContent=d+'/'+m+'/'+y; }
   else document.getElementById('pv_date').textContent='–';
   if (notes) { document.getElementById('pv_notes').textContent=notes; document.getElementById('pv_notes_row').style.display='flex'; }
@@ -307,10 +328,10 @@ function generate() {
   p.set('clientPhone', document.getElementById('clientPhone').value.trim());
   if (agreementType === 'seller') {
     p.set('businessName', document.getElementById('businessName').value.trim());
-    p.set('oneTimePayment', document.getElementById('oneTimePayment').value.trim());
+    p.set('oneTimePayment', numFrom('oneTimePayment'));
   }
-  p.set('minFee', document.getElementById('minFee').value.trim());
-  p.set('commissionPercentage', document.getElementById('commissionPct').value.trim());
+  p.set('minFee', numFrom('minFee'));
+  p.set('commissionPercentage', numFrom('commissionPct'));
   p.set('agreementDate', document.getElementById('agreementDate').value);
   p.set('allowNameEdit', document.getElementById('allowNameEdit').checked ? '1' : '0');
   const notes = document.getElementById('notes').value.trim();
@@ -338,9 +359,9 @@ function sendWA() {
   const name  = document.getElementById('clientName').value.trim();
   const biz   = document.getElementById('businessName').value.trim();
   const phone = document.getElementById('clientPhone').value.trim();
-  const pay   = Number(document.getElementById('oneTimePayment').value.trim()||0).toLocaleString('he-IL');
-  const minFee = Number(document.getElementById('minFee').value.trim()||0).toLocaleString('he-IL');
-  const comm  = document.getElementById('commissionPct').value.trim();
+  const pay   = numFrom('oneTimePayment').toLocaleString('he-IL');
+  const minFee = numFrom('minFee').toLocaleString('he-IL');
+  const comm  = numFrom('commissionPct');
   const dateR = document.getElementById('agreementDate').value;
   let dateFmt = dateR;
   if (dateR) { const [y,m,d]=dateR.split('-'); dateFmt=d+'/'+m+'/'+y; }
@@ -350,7 +371,7 @@ function sendWA() {
 
   const t = TYPE_TEXT[agreementType];
   const bizLine = agreementType === 'seller' ? `• שם העסק: ${biz}\n` : '';
-  const payLine = agreementType === 'seller' ? `• דמי פתיחת תיק: ${pay} ₪ + מע"מ\n` : '';
+  const payLine = agreementType === 'seller' ? `• דמי פתיחת תיק: ${pay} ₪ (לא כולל מע"מ)\n` : '';
 
   const msg =
 `שלום ${name},
@@ -358,7 +379,7 @@ function sendWA() {
 ${t.waIntro}
 
 📋 *פרטי ההסכם:*
-${bizLine}${payLine}• שכר הצלחה מינימלי: ${minFee} ₪ + מע"מ (או ${comm}% מהעסקה, הגבוה מביניהם)
+${bizLine}${payLine}• שכר הצלחה מינימלי: ${minFee} ₪ (לא כולל מע"מ) (או ${comm}% מהעסקה, הגבוה מביניהם)
 • תאריך: ${dateFmt}
 
 לחץ על הקישור הבא, קרא את ההסכם, מלא את פרטיך וחתום:
@@ -374,11 +395,13 @@ ${currentURL}
 
 function resetForm() {
   setType('seller');
-  ['clientName','clientPhone','businessName','oneTimePayment','commissionPct','notes'].forEach(id=>{
+  ['clientName','clientPhone','businessName','notes'].forEach(id=>{
     document.getElementById(id).value=''; document.getElementById(id).classList.remove('error');
   });
   document.getElementById('agreementDate').value = new Date().toISOString().split('T')[0];
-  document.getElementById('minFee').value = 50000;
+  document.getElementById('oneTimePayment').value = '4,000 ₪';
+  document.getElementById('minFee').value = '50,000 ₪';
+  document.getElementById('commissionPct').value = '5%';
   document.getElementById('allowNameEdit').checked = false;
   document.getElementById('linkOut').classList.remove('show');
   document.getElementById('errBanner').classList.remove('show');
