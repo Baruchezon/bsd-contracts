@@ -2,6 +2,9 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>הסכם התקשרות – קונה פוטנציאלי | BSD Business Brokers Israel</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -274,8 +277,8 @@ footer a{color:var(--navy);text-decoration:none;}
     <h2>ההסכם נחתם בהצלחה!</h2>
     <p>תודה, <strong id="suc_name"></strong>. ההסכם אושר וחתמת עליו.<br>לחץ על הכפתור למטה להדפסה / שמירה כ-PDF.</p>
     <button id="printBtn" class="btn btn-pdf" onclick="printContract()" style="margin-bottom:10px;">🖨️ הורד PDF של ההסכם החתום</button>
-    <div id="emailErrNote" style="display:none;background:#FEF9C3;border:1px solid #F59E0B;border-radius:8px;padding:10px 14px;font-size:12px;color:#78350F;margin-bottom:12px;">⚠️ שליחת המייל נכשלה – ניתן לשלוח ידנית ל-baruch@bsd-bbi.co.il</div>
-    <p style="margin-top:14px;font-size:13px;color:var(--gray);">לשאלות: <a href="mailto:baruch@bsd-bbi.co.il">baruch@bsd-bbi.co.il</a> | <a href="https://bsd-bbi.co.il">bsd-bbi.co.il</a></p>
+    <div id="emailErrNote" style="display:none;background:#FEF9C3;border:1px solid #F59E0B;border-radius:8px;padding:10px 14px;font-size:12px;color:#78350F;margin-bottom:12px;">⚠️ שליחת המייל נכשלה – ניתן לשלוח ידנית ל-baruch.ezon@gmail.com</div>
+    <p style="margin-top:14px;font-size:13px;color:var(--gray);">לשאלות: <a href="mailto:baruch.ezon@gmail.com">baruch.ezon@gmail.com</a> | <a href="https://bsd-bbi.co.il">bsd-bbi.co.il</a></p>
   </div>
 </div>
 
@@ -334,7 +337,7 @@ footer a{color:var(--navy);text-decoration:none;}
     </div>
 
     <div style="text-align:center;margin-top:24px;padding-top:12px;border-top:2px solid #1B2A4A;font-size:12px;color:#6B7280;">
-      BSD Business Brokers Israel | bsd-bbi.co.il | ברוך איזון | baruch@bsd-bbi.co.il
+      BSD Business Brokers Israel | bsd-bbi.co.il | ברוך איזון | baruch.ezon@gmail.com
     </div>
   </div>
 </div>
@@ -643,20 +646,24 @@ ${notesLine}🔢 *מספר הסכם:* ${cid}
     'מינימום שכר הצלחה': minFee+' ₪', 'עמלה': comm+'%',
   }, notes ? {'הערות': notes} : {});
 
+  // 1) שלח הודעת מייל טקסטואלית - זהה למנגנון שכבר הוכח כעובד (בלי קובץ מצורף)
+  fetch('https://formsubmit.co/ajax/baruch.ezon@gmail.com', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','Accept':'application/json'},
+    body: JSON.stringify(formFields)
+  }).catch(e => console.warn('FormSubmit (טקסט):', e));
+
+  // 2) שלח בנוסף מייל עם קובץ ה-PDF החתום מצורף בפועל (endpoint הרגיל, לא ה-ajax, כי צירוף קבצים דורש אותו)
   buildPdfDocument().then(({ pdf, filename }) => {
     const pdfBlob = pdf.output('blob');
     const fd = new FormData();
     Object.entries(formFields).forEach(([k,v]) => fd.append(k, v));
     fd.append('attachment', pdfBlob, filename);
-    fetch('https://formsubmit.co/ajax/baruch@bsd-bbi.co.il', { method: 'POST', body: fd })
-      .catch(e => console.warn('FormSubmit (עם PDF):', e));
+    fetch('https://formsubmit.co/baruch.ezon@gmail.com', { method: 'POST', body: fd })
+      .then(r => { if (!r.ok) console.warn('FormSubmit (PDF מצורף) החזיר סטטוס:', r.status); })
+      .catch(e => console.warn('FormSubmit (PDF מצורף):', e));
   }).catch(err => {
-    console.warn('יצירת PDF לצירוף נכשלה, שולח ללא קובץ מצורף:', err);
-    fetch('https://formsubmit.co/ajax/baruch@bsd-bbi.co.il', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json','Accept':'application/json'},
-      body: JSON.stringify(formFields)
-    }).catch(e => console.warn('FormSubmit (ללא PDF):', e));
+    console.warn('יצירת PDF לצירוף נכשלה:', err);
   });
 
   showSuccess(name);
