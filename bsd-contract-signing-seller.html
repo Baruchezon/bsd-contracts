@@ -280,8 +280,8 @@ footer a{color:var(--navy);text-decoration:none;}
     <h2>ההסכם נחתם בהצלחה!</h2>
     <p>תודה, <strong id="suc_name"></strong>. ההסכם אושר וחתמת עליו.<br>לחץ על הכפתור למטה להדפסה / שמירה כ-PDF.</p>
     <button id="printBtn" class="btn btn-pdf" onclick="printContract()" style="margin-bottom:10px;">🖨️ הורד PDF של ההסכם החתום</button>
-    <div id="emailErrNote" style="display:none;background:#FEF9C3;border:1px solid #F59E0B;border-radius:8px;padding:10px 14px;font-size:12px;color:#78350F;margin-bottom:12px;">⚠️ שליחת המייל נכשלה – ניתן לשלוח ידנית ל-baruch.ezon@gmail.com</div>
-    <p style="margin-top:14px;font-size:13px;color:var(--gray);">לשאלות: <a href="mailto:baruch.ezon@gmail.com">baruch.ezon@gmail.com</a> | <a href="https://bsd-bbi.co.il">bsd-bbi.co.il</a></p>
+    <div id="emailErrNote" style="display:none;background:#FEF9C3;border:1px solid #F59E0B;border-radius:8px;padding:10px 14px;font-size:12px;color:#78350F;margin-bottom:12px;">⚠️ שליחת המייל נכשלה – ניתן לשלוח ידנית ל-baruch@bsd-bbi.co.il</div>
+    <p style="margin-top:14px;font-size:13px;color:var(--gray);">לשאלות: <a href="mailto:baruch@bsd-bbi.co.il">baruch@bsd-bbi.co.il</a> | <a href="https://bsd-bbi.co.il">bsd-bbi.co.il</a></p>
   </div>
 </div>
 
@@ -342,7 +342,7 @@ footer a{color:var(--navy);text-decoration:none;}
     </div>
 
     <div style="text-align:center;margin-top:24px;padding-top:12px;border-top:2px solid #1B2A4A;font-size:12px;color:#6B7280;">
-      BSD Business Brokers Israel | bsd-bbi.co.il | ברוך איזון | baruch.ezon@gmail.com
+      BSD Business Brokers Israel | bsd-bbi.co.il | ברוך איזון | baruch@bsd-bbi.co.il
     </div>
   </div>
 </div>
@@ -653,20 +653,32 @@ function submitForm() {
   const waURL = 'https://wa.me/972542424999?text=' + encodeURIComponent(waMsg);
   setTimeout(() => window.open(waURL, '_blank'), 1200);
 
-  // שלח FormSubmit
-  fetch('https://formsubmit.co/ajax/baruch.ezon@gmail.com', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Accept':'application/json'},
-    body: JSON.stringify({
-      _subject: 'הסכם חתום (מוכר עסק) – '+name+' | '+biz,
-      _replyto: email,
-      _captcha: 'false',
-      'שם': name, 'עסק': biz, 'טלפון': phone,
-      'אימייל': email, 'כתובת': addr,
-      'מספר הסכם': cid, 'תאריך': sigTime,
-      'דמי פתיחה': ot+' ₪', 'מינימום שכר הצלחה': minFee+' ₪', 'עמלה': comm+'%',
-    })
-  }).catch(e => console.warn('FormSubmit:', e));
+  // שלח FormSubmit - עם קובץ ה-PDF החתום מצורף בפועל
+  const formFields = {
+    _subject: 'הסכם חתום (מוכר עסק) – '+name+' | '+biz,
+    _replyto: email,
+    _captcha: 'false',
+    'שם': name, 'עסק': biz, 'טלפון': phone,
+    'אימייל': email, 'כתובת': addr,
+    'מספר הסכם': cid, 'תאריך': sigTime,
+    'דמי פתיחה': ot+' ₪', 'מינימום שכר הצלחה': minFee+' ₪', 'עמלה': comm+'%',
+  };
+
+  buildPdfDocument().then(({ pdf, filename }) => {
+    const pdfBlob = pdf.output('blob');
+    const fd = new FormData();
+    Object.entries(formFields).forEach(([k,v]) => fd.append(k, v));
+    fd.append('attachment', pdfBlob, filename);
+    fetch('https://formsubmit.co/ajax/baruch@bsd-bbi.co.il', { method: 'POST', body: fd })
+      .catch(e => console.warn('FormSubmit (עם PDF):', e));
+  }).catch(err => {
+    console.warn('יצירת PDF לצירוף נכשלה, שולח ללא קובץ מצורף:', err);
+    fetch('https://formsubmit.co/ajax/baruch@bsd-bbi.co.il', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Accept':'application/json'},
+      body: JSON.stringify(formFields)
+    }).catch(e => console.warn('FormSubmit (ללא PDF):', e));
+  });
 
   showSuccess(name);
 }
@@ -712,64 +724,72 @@ function preparePrintArea(name,biz,id_n,entity,phone,email,addr,dt,cid,ot,comm,s
   document.getElementById('printLogo').src = logoSrc;
 }
 
-/* ─────────── PDF מ-html2canvas ─────────── */
+/* ─────────── PDF BUILD (משותף - הורדה ידנית + צירוף למייל) ─────────── */
+function buildPdfDocument() {
+  return new Promise((resolve, reject) => {
+    const area = document.getElementById('printArea');
+    area.style.display = 'block';
+
+    const name = getFullName();
+    const bizEl = document.getElementById('f_biz');
+    const biz = bizEl ? bizEl.value : '';
+    const now = new Date();
+    const dd=String(now.getDate()).padStart(2,'0'), mo=String(now.getMonth()+1).padStart(2,'0'), yyyy=now.getFullYear();
+    const filename = 'הסכם-'+name+(biz?'-'+biz:'')+'-'+dd+'-'+mo+'-'+yyyy+'.pdf';
+
+    html2canvas(area, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      windowWidth: 900,
+    }).then(canvas => {
+      const { jsPDF } = window.jspdf;
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
+      const canvasW = canvas.width;
+      const canvasH = canvas.height;
+      const ratio = pdfW / canvasW;
+      const pageHeightPx = pdfH / ratio;
+      let y = 0;
+      while (y < canvasH) {
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvasW;
+        pageCanvas.height = Math.min(pageHeightPx, canvasH - y);
+        const ctx = pageCanvas.getContext('2d');
+        ctx.drawImage(canvas, 0, y, canvasW, pageCanvas.height, 0, 0, canvasW, pageCanvas.height);
+        const pageImg = pageCanvas.toDataURL('image/jpeg', 0.95);
+        if (y > 0) pdf.addPage();
+        pdf.addImage(pageImg, 'JPEG', 0, 0, pdfW, pageCanvas.height * ratio);
+        y += pageHeightPx;
+      }
+      area.style.display = 'none';
+      resolve({ pdf, filename });
+    }).catch(err => {
+      area.style.display = 'none';
+      reject(err);
+    });
+  });
+}
+
 function printContract() {
   const btn = document.getElementById('printBtn');
   btn.disabled = true;
   btn.textContent = '⏳ מייצר PDF...';
-
-  const area = document.getElementById('printArea');
-  area.style.display = 'block';
-
-  const name = document.getElementById('f_name').value;
-  const biz  = document.getElementById('f_biz').value;
-  const now  = new Date();
-  const dd=String(now.getDate()).padStart(2,'0'), mo=String(now.getMonth()+1).padStart(2,'0'), yyyy=now.getFullYear();
-  const filename = 'הסכם-'+name+'-'+biz+'-'+dd+'-'+mo+'-'+yyyy+'.pdf';
-
-  html2canvas(area, {
-    scale: 2,
-    useCORS: true,
-    allowTaint: true,
-    backgroundColor: '#ffffff',
-    windowWidth: 900,
-  }).then(canvas => {
-    const { jsPDF } = window.jspdf;
-    const imgData = canvas.toDataURL('image/jpeg', 0.95);
-    const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-    const pdfW = pdf.internal.pageSize.getWidth();
-    const pdfH = pdf.internal.pageSize.getHeight();
-    const canvasW = canvas.width;
-    const canvasH = canvas.height;
-    const ratio = pdfW / canvasW;
-    const pageHeightPx = pdfH / ratio;
-    let y = 0;
-    while (y < canvasH) {
-      const pageCanvas = document.createElement('canvas');
-      pageCanvas.width = canvasW;
-      pageCanvas.height = Math.min(pageHeightPx, canvasH - y);
-      const ctx = pageCanvas.getContext('2d');
-      ctx.drawImage(canvas, 0, y, canvasW, pageCanvas.height, 0, 0, canvasW, pageCanvas.height);
-      const pageImg = pageCanvas.toDataURL('image/jpeg', 0.95);
-      if (y > 0) pdf.addPage();
-      pdf.addImage(pageImg, 'JPEG', 0, 0, pdfW, pageCanvas.height * ratio);
-      y += pageHeightPx;
-    }
+  buildPdfDocument().then(({ pdf, filename }) => {
     pdf.save(filename);
-    area.style.display = 'none';
     btn.disabled = false;
     btn.textContent = '🖨️ הורד PDF של ההסכם החתום';
   }).catch(err => {
     console.error(err);
-    area.style.display = 'none';
     btn.disabled = false;
     btn.textContent = '🖨️ הורד PDF של ההסכם החתום';
     alert('שגיאה ביצירת PDF. נסה שוב.');
   });
 }
 
-/* ─────────── BUILD PDF ─────────── */
-function buildPDFDoc() { return null; } // לא בשימוש
 </script>
 </body>
 </html>
