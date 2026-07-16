@@ -36,6 +36,12 @@ body{font-family:'Heebo',Arial,sans-serif;background:var(--bg);color:#1A1A2E;dir
 .hint{font-size:12px;color:var(--gray);margin-top:3px;}
 .toggle-row{display:flex;align-items:center;gap:10px;background:#F7F8FB;border:1px solid var(--border);border-radius:8px;padding:10px 13px;font-size:13px;color:var(--navy);font-weight:500;cursor:pointer;}
 .toggle-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--navy);cursor:pointer;flex-shrink:0;}
+.type-toggle{display:flex;gap:10px;margin-bottom:20px;}
+.type-btn{flex:1;text-align:center;padding:13px 10px;border-radius:10px;border:2px solid var(--border);background:var(--white);cursor:pointer;font-family:'Heebo',Arial,sans-serif;font-weight:700;font-size:14px;color:var(--gray);transition:all .2s;}
+.type-btn .ti{font-size:20px;display:block;margin-bottom:3px;}
+.type-btn.active{border-color:var(--navy);background:var(--navy);color:var(--white);}
+.type-btn:hover:not(.active){border-color:var(--gold);}
+.hidden-field{display:none !important;}
 .field-error{font-size:12px;color:var(--red);margin-top:3px;display:none;}
 .field-error.show{display:block;}
 .err-banner{background:#FEF2F2;border:1.5px solid #FECACA;border-radius:8px;padding:10px 15px;color:var(--red);font-size:13px;font-weight:600;margin-bottom:12px;display:none;text-align:center;}
@@ -87,10 +93,20 @@ footer a{color:var(--navy);text-decoration:none;}
   <div class="card">
     <div class="card-title"><span class="step-badge">1</span> פרטי העסקה</div>
     <div class="err-banner" id="errBanner">יש למלא את כל שדות החובה</div>
+
+    <div class="type-toggle">
+      <button type="button" class="type-btn active" id="typeBtnSeller" onclick="setType('seller')">
+        <span class="ti">🏪</span> הסכם מול מוכר עסק
+      </button>
+      <button type="button" class="type-btn" id="typeBtnBuyer" onclick="setType('buyer')">
+        <span class="ti">🤝</span> הסכם מול קונה פוטנציאלי
+      </button>
+    </div>
+
     <div class="form-grid">
 
       <div class="fg">
-        <label>שם הלקוח / המוכר <span class="req">*</span></label>
+        <label id="lbl_name">שם הלקוח / המוכר <span class="req">*</span></label>
         <input type="text" id="clientName" placeholder="ישראל ישראלי">
         <div class="field-error" id="e_name">שדה חובה</div>
       </div>
@@ -102,23 +118,30 @@ footer a{color:var(--navy);text-decoration:none;}
         <div class="field-error" id="e_phone">שדה חובה</div>
       </div>
 
-      <div class="fg">
-        <label>שם העסק <span class="req">*</span></label>
+      <div class="fg" id="wrap_biz">
+        <label id="lbl_biz">שם העסק <span class="req">*</span></label>
         <input type="text" id="businessName" placeholder="שם העסק הרשום">
         <div class="field-error" id="e_biz">שדה חובה</div>
       </div>
 
-      <div class="fg">
-        <label>תשלום חד-פעמי (₪ לפני מע"מ) <span class="req">*</span></label>
+      <div class="fg" id="wrap_pay">
+        <label id="lbl_pay">דמי פתיחת תיק (₪ לפני מע"מ) <span class="req">*</span></label>
         <input type="number" id="oneTimePayment" placeholder="4000" min="0" dir="ltr" style="text-align:right">
-        <div class="hint">דמי פתיחת תיק – יופיע בטבלת שכר הטרחה</div>
+        <div class="hint" id="hint_pay">דמי פתיחת תיק – יופיע בטבלת שכר הטרחה</div>
         <div class="field-error" id="e_pay">שדה חובה</div>
       </div>
 
       <div class="fg">
-        <label>אחוז עמלה מהעסקה (%) <span class="req">*</span></label>
+        <label>מינימום שכר הצלחה (₪ לפני מע"מ) <span class="req">*</span></label>
+        <input type="number" id="minFee" placeholder="50000" min="0" dir="ltr" style="text-align:right">
+        <div class="hint">הסכום המינימלי לשכר ההצלחה – יופיע בטבלה ובגוף ההסכם (יחד עם אחוז העמלה, הגבוה מביניהם)</div>
+        <div class="field-error" id="e_minfee">שדה חובה</div>
+      </div>
+
+      <div class="fg">
+        <label id="lbl_comm">אחוז עמלה מהעסקה (%) <span class="req">*</span></label>
         <input type="number" id="commissionPct" placeholder="5" min="0" max="100" step="0.1" dir="ltr" style="text-align:right">
-        <div class="hint">יופיע בסעיף שכר הטרחה בגוף ההסכם</div>
+        <div class="hint" id="hint_comm">יופיע בסעיף שכר הטרחה בגוף ההסכם</div>
         <div class="field-error" id="e_comm">שדה חובה</div>
       </div>
 
@@ -147,10 +170,12 @@ footer a{color:var(--navy);text-decoration:none;}
   <div class="card">
     <div class="card-title"><span class="step-badge">2</span> תצוגה מקדימה</div>
     <div class="preview-box">
+      <div class="preview-row"><span class="pl">סוג הסכם:</span><span class="pv" id="pv_type">מוכר עסק</span></div>
       <div class="preview-row"><span class="pl">שם הלקוח:</span><span class="pv" id="pv_name">–</span></div>
       <div class="preview-row"><span class="pl">טלפון:</span><span class="pv" id="pv_phone">–</span></div>
-      <div class="preview-row"><span class="pl">שם העסק:</span><span class="pv" id="pv_biz">–</span></div>
-      <div class="preview-row"><span class="pl">תשלום חד-פעמי:</span><span class="pv" id="pv_pay">–</span></div>
+      <div class="preview-row" id="pvrow_biz"><span class="pl">שם העסק:</span><span class="pv" id="pv_biz">–</span></div>
+      <div class="preview-row" id="pvrow_pay"><span class="pl">תשלום חד-פעמי:</span><span class="pv" id="pv_pay">–</span></div>
+      <div class="preview-row"><span class="pl">מינימום שכר הצלחה:</span><span class="pv" id="pv_minfee">–</span></div>
       <div class="preview-row"><span class="pl">אחוז עמלה:</span><span class="pv" id="pv_comm">–</span></div>
       <div class="preview-row"><span class="pl">תאריך ההסכם:</span><span class="pv" id="pv_date">–</span></div>
       <div class="preview-row" id="pv_notes_row" style="display:none"><span class="pl">הערות:</span><span class="pv" id="pv_notes">–</span></div>
@@ -183,13 +208,59 @@ footer a{color:var(--navy);text-decoration:none;}
 <footer>BSD Business Brokers Israel | <a href="https://bsd-bbi.co.il">bsd-bbi.co.il</a> | לשימוש פנימי בלבד</footer>
 
 <script>
-const SIGNING_URL = 'https://baruchezon.github.io/bsd-contracts/bsd-contract-signing.html';
+const SIGNING_URL_SELLER = 'https://baruchezon.github.io/bsd-contracts/bsd-contract-signing-seller.html';
+const SIGNING_URL_BUYER  = 'https://baruchezon.github.io/bsd-contracts/bsd-contract-signing-buyer.html';
 
 let currentURL = '';
+let agreementType = 'seller';
+
+const TYPE_TEXT = {
+  seller: {
+    nameLabel: 'שם הלקוח / המוכר',
+    bizLabel: 'שם העסק',
+    bizPlaceholder: 'שם העסק הרשום',
+    payLabel: 'דמי פתיחת תיק (₪ לפני מע"מ)',
+    payHint: 'דמי פתיחת תיק – יופיע בטבלת שכר הטרחה',
+    payPlaceholder: '4000',
+    commHint: 'יופיע בסעיף שכר הטרחה בגוף ההסכם (50,000 ₪ או % משווי העסקה)',
+    previewLabel: 'מוכר עסק',
+    waIntro: 'הכנתי עבורך הסכם התקשרות מסודר עם BSD Business Brokers Israel לליווי תהליך מכירת העסק.',
+  },
+  buyer: {
+    nameLabel: 'שם הלקוח / הקונה',
+    bizLabel: 'שם העסק / התחום המבוקש',
+    bizPlaceholder: 'למשל: עסקים בתחום המזון, תל אביב',
+    payLabel: 'דמי פתיחת תיק (₪ לפני מע"מ, ככל שיסוכם)',
+    payHint: 'ברירת מחדל 0 ₪ (ניתן לשנות אם סוכם אחרת עם הקונה)',
+    payPlaceholder: '0',
+    commHint: 'יופיע בסעיף שכר הטרחה: 50,000 ₪ או % משווי העסקה – הגבוה מבין השניים',
+    previewLabel: 'קונה פוטנציאלי',
+    waIntro: 'הכנתי עבורך הסכם התקשרות מסודר עם BSD Business Brokers Israel לליווי תהליך איתור ורכישת עסק.',
+  }
+};
+
+function setType(type) {
+  agreementType = type;
+  document.getElementById('typeBtnSeller').classList.toggle('active', type==='seller');
+  document.getElementById('typeBtnBuyer').classList.toggle('active', type==='buyer');
+  const t = TYPE_TEXT[type];
+  document.getElementById('lbl_name').innerHTML = t.nameLabel + ' <span class="req">*</span>';
+  document.getElementById('hint_comm').textContent = t.commHint;
+  document.getElementById('pv_type').textContent = t.previewLabel;
+
+  const isBuyer = (type === 'buyer');
+  document.getElementById('wrap_pay').classList.toggle('hidden-field', isBuyer);
+  document.getElementById('pvrow_pay').classList.toggle('hidden-field', isBuyer);
+  document.getElementById('wrap_biz').classList.toggle('hidden-field', isBuyer);
+  document.getElementById('pvrow_biz').classList.toggle('hidden-field', isBuyer);
+  updatePreview();
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('agreementDate').value = new Date().toISOString().split('T')[0];
-  ['clientName','clientPhone','businessName','oneTimePayment','commissionPct','agreementDate','notes'].forEach(id =>
+  document.getElementById('minFee').value = 50000;
+  setType('seller');
+  ['clientName','clientPhone','businessName','oneTimePayment','minFee','commissionPct','agreementDate','notes'].forEach(id =>
     document.getElementById(id).addEventListener('input', updatePreview));
   document.getElementById('allowNameEdit').addEventListener('change', updatePreview);
   updatePreview();
@@ -200,6 +271,7 @@ function updatePreview() {
   const phone = document.getElementById('clientPhone').value.trim();
   const biz   = document.getElementById('businessName').value.trim();
   const pay   = document.getElementById('oneTimePayment').value.trim();
+  const minFee = document.getElementById('minFee').value.trim();
   const comm  = document.getElementById('commissionPct').value.trim();
   const date  = document.getElementById('agreementDate').value;
   const notes = document.getElementById('notes').value.trim();
@@ -209,6 +281,7 @@ function updatePreview() {
   document.getElementById('pv_phone').textContent = phone||'–';
   document.getElementById('pv_biz').textContent   = biz||'–';
   document.getElementById('pv_pay').textContent   = pay ? Number(pay).toLocaleString('he-IL')+' ₪ + מע"מ' : '–';
+  document.getElementById('pv_minfee').textContent = minFee ? Number(minFee).toLocaleString('he-IL')+' ₪ + מע"מ' : '–';
   document.getElementById('pv_comm').textContent  = comm ? comm+'%' : '–';
   if (date) { const [y,m,d]=date.split('-'); document.getElementById('pv_date').textContent=d+'/'+m+'/'+y; }
   else document.getElementById('pv_date').textContent='–';
@@ -220,8 +293,9 @@ function updatePreview() {
 function validate() {
   let ok=true;
   function chk(id,eid){ const v=document.getElementById(id).value.trim(); const e=document.getElementById(eid); if(!v){document.getElementById(id).classList.add('error');e.classList.add('show');ok=false;}else{document.getElementById(id).classList.remove('error');e.classList.remove('show');} }
-  chk('clientName','e_name'); chk('clientPhone','e_phone'); chk('businessName','e_biz');
-  chk('oneTimePayment','e_pay'); chk('commissionPct','e_comm'); chk('agreementDate','e_date');
+  chk('clientName','e_name'); chk('clientPhone','e_phone');
+  if (agreementType === 'seller') { chk('businessName','e_biz'); chk('oneTimePayment','e_pay'); }
+  chk('minFee','e_minfee'); chk('commissionPct','e_comm'); chk('agreementDate','e_date');
   document.getElementById('errBanner').classList.toggle('show',!ok);
   return ok;
 }
@@ -231,14 +305,18 @@ function generate() {
   const p = new URLSearchParams();
   p.set('clientName', document.getElementById('clientName').value.trim());
   p.set('clientPhone', document.getElementById('clientPhone').value.trim());
-  p.set('businessName', document.getElementById('businessName').value.trim());
-  p.set('oneTimePayment', document.getElementById('oneTimePayment').value.trim());
+  if (agreementType === 'seller') {
+    p.set('businessName', document.getElementById('businessName').value.trim());
+    p.set('oneTimePayment', document.getElementById('oneTimePayment').value.trim());
+  }
+  p.set('minFee', document.getElementById('minFee').value.trim());
   p.set('commissionPercentage', document.getElementById('commissionPct').value.trim());
   p.set('agreementDate', document.getElementById('agreementDate').value);
   p.set('allowNameEdit', document.getElementById('allowNameEdit').checked ? '1' : '0');
   const notes = document.getElementById('notes').value.trim();
   if (notes) p.set('notes', notes);
-  currentURL = SIGNING_URL + '?' + p.toString();
+  const baseURL = agreementType === 'seller' ? SIGNING_URL_SELLER : SIGNING_URL_BUYER;
+  currentURL = baseURL + '?' + p.toString();
   document.getElementById('linkBox').textContent = currentURL;
   document.getElementById('linkOut').classList.add('show');
   document.getElementById('linkOut').scrollIntoView({behavior:'smooth',block:'start'});
@@ -260,7 +338,8 @@ function sendWA() {
   const name  = document.getElementById('clientName').value.trim();
   const biz   = document.getElementById('businessName').value.trim();
   const phone = document.getElementById('clientPhone').value.trim();
-  const pay   = Number(document.getElementById('oneTimePayment').value.trim()).toLocaleString('he-IL');
+  const pay   = Number(document.getElementById('oneTimePayment').value.trim()||0).toLocaleString('he-IL');
+  const minFee = Number(document.getElementById('minFee').value.trim()||0).toLocaleString('he-IL');
   const comm  = document.getElementById('commissionPct').value.trim();
   const dateR = document.getElementById('agreementDate').value;
   let dateFmt = dateR;
@@ -269,15 +348,17 @@ function sendWA() {
   let cleaned = phone.replace(/[\s\-\(\)]/g,'');
   if (cleaned.startsWith('0')) cleaned = '972' + cleaned.slice(1);
 
+  const t = TYPE_TEXT[agreementType];
+  const bizLine = agreementType === 'seller' ? `• שם העסק: ${biz}\n` : '';
+  const payLine = agreementType === 'seller' ? `• דמי פתיחת תיק: ${pay} ₪ + מע"מ\n` : '';
+
   const msg =
 `שלום ${name},
 
-הכנתי עבורך הסכם התקשרות מסודר עם BSD Business Brokers Israel.
+${t.waIntro}
 
 📋 *פרטי ההסכם:*
-• שם העסק: ${biz}
-• דמי פתיחת תיק: ${pay} ₪ + מע"מ
-• עמלת הצלחה: ${comm}% + מע"מ
+${bizLine}${payLine}• שכר הצלחה מינימלי: ${minFee} ₪ + מע"מ (או ${comm}% מהעסקה, הגבוה מביניהם)
 • תאריך: ${dateFmt}
 
 לחץ על הקישור הבא, קרא את ההסכם, מלא את פרטיך וחתום:
@@ -292,14 +373,16 @@ ${currentURL}
 }
 
 function resetForm() {
+  setType('seller');
   ['clientName','clientPhone','businessName','oneTimePayment','commissionPct','notes'].forEach(id=>{
     document.getElementById(id).value=''; document.getElementById(id).classList.remove('error');
   });
   document.getElementById('agreementDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('minFee').value = 50000;
   document.getElementById('allowNameEdit').checked = false;
   document.getElementById('linkOut').classList.remove('show');
   document.getElementById('errBanner').classList.remove('show');
-  ['e_name','e_phone','e_biz','e_pay','e_comm','e_date'].forEach(id=>document.getElementById(id).classList.remove('show'));
+  ['e_name','e_phone','e_biz','e_pay','e_minfee','e_comm','e_date'].forEach(id=>document.getElementById(id).classList.remove('show'));
   currentURL=''; updatePreview();
   window.scrollTo({top:0,behavior:'smooth'});
 }
