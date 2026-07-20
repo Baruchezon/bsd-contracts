@@ -259,8 +259,8 @@ footer a{color:var(--navy);text-decoration:none;}
     </div>
     <div id="sigErr">נדרשת חתימה דיגיטלית לפני שליחה</div>
     <div class="sig-btns">
-      <button class="btn btn-outline" onclick="clearSig()">🗑️ נקה חתימה</button>
-      <button class="btn btn-outline" onclick="clearSig()">✏️ חתום מחדש</button>
+      <button type="button" class="btn btn-outline" onclick="clearSig()">🗑️ נקה חתימה</button>
+      <button type="button" class="btn btn-outline" onclick="clearSig()">✏️ חתום מחדש</button>
     </div>
   </div>
 
@@ -268,7 +268,7 @@ footer a{color:var(--navy);text-decoration:none;}
   <div class="card">
     <div class="card-title"><span class="num-badge">5</span> שליחה וקבלת ההסכם</div>
     <div class="err-banner" id="errBanner">יש לתקן את השגיאות המסומנות לפני שליחה</div>
-    <button class="btn btn-submit" onclick="submitForm()">✅ אישור, חתימה ושליחת ההסכם</button>
+    <button type="button" class="btn btn-submit" onclick="submitForm()">✅ אישור, חתימה ושליחת ההסכם</button>
     <div class="privacy-note">🔒 הפרטים נמסרים לצורך עריכת הסכם ההתקשרות והשלמת תהליך ההתקשרות בלבד.</div>
   </div>
 
@@ -282,7 +282,7 @@ footer a{color:var(--navy);text-decoration:none;}
     </div>
     <h2>ההסכם נחתם בהצלחה!</h2>
     <p>תודה, <strong id="suc_name"></strong>. ההסכם אושר וחתמת עליו.<br>לחץ על הכפתור למטה להדפסה / שמירה כ-PDF.</p>
-    <button id="printBtn" class="btn btn-pdf" onclick="printContract()" style="margin-bottom:10px;">🖨️ הורד PDF של ההסכם החתום</button>
+    <button type="button" id="printBtn" class="btn btn-pdf" onclick="printContract()" style="margin-bottom:10px;">🖨️ הורד PDF של ההסכם החתום</button>
     <div id="emailErrNote" style="display:none;background:#FEF9C3;border:1px solid #F59E0B;border-radius:8px;padding:10px 14px;font-size:12px;color:#78350F;margin-bottom:12px;">⚠️ שליחת המייל נכשלה – ניתן לשלוח ידנית ל-baruch.ezon@gmail.com</div>
     <p style="margin-top:14px;font-size:13px;color:var(--gray);">לשאלות: <a href="mailto:baruch.ezon@gmail.com">baruch.ezon@gmail.com</a> | <a href="https://bsd-bbi.co.il">bsd-bbi.co.il</a></p>
   </div>
@@ -652,9 +652,9 @@ function submitForm() {
 
 ✅ המוכר קרא, אישר וחתם על ההסכם.`;
 
-  // שלח WhatsApp לברוך
+  // שלח WhatsApp לברוך - נפתח מיידית (בלי השהיה), כדי שהדפדפן במובייל לא יחסום את החלון כפופ-אפ
   const waURL = 'https://wa.me/972542424999?text=' + encodeURIComponent(waMsg);
-  setTimeout(() => window.open(waURL, '_blank'), 1200);
+  window.open(waURL, '_blank');
 
   // שלח FormSubmit - עם קובץ ה-PDF החתום מצורף בפועל
   const formFields = {
