@@ -734,6 +734,15 @@ function buildPdfDocument() {
     const dd=String(now.getDate()).padStart(2,'0'), mo=String(now.getMonth()+1).padStart(2,'0'), yyyy=now.getFullYear();
     const filename = 'הסכם-'+name+(biz?'-'+biz:'')+'-'+dd+'-'+mo+'-'+yyyy+'.pdf';
 
+    // ודא שכל התמונות (חתימה, לוגו) סיימו להיטען, ותן לדפדפן זמן לצייר מחדש
+    // (ה-print area היה display:none עד כרגע - בלי זה, html2canvas עלול לצלם לפני שהתוכן נטען/צויר, וזה גורם לחתימה/פרטים חסרים)
+    const images = Array.from(area.querySelectorAll('img'));
+    const waitForImages = Promise.all(images.map(img => {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      return new Promise(res => { img.onload = res; img.onerror = res; });
+    }));
+
+    waitForImages.then(() => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)))).then(() => {
     html2canvas(area, {
       scale: 2,
       useCORS: true,
@@ -764,6 +773,10 @@ function buildPdfDocument() {
       }
       area.style.display = 'none';
       resolve({ pdf, filename });
+    }).catch(err => {
+      area.style.display = 'none';
+      reject(err);
+    });
     }).catch(err => {
       area.style.display = 'none';
       reject(err);
