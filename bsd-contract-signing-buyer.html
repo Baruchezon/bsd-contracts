@@ -674,9 +674,12 @@ ${notesLine}🔢 *מספר הסכם:* ${cid}
       'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN'
     );
     bsdCrmClient.rpc('mark_lead_agreement_signed', { p_phone: phone, p_type: 'buyer' })
-      .then(({ error }) => { if (error) console.warn('עדכון CRM נכשל:', error.message); })
-      .catch(e => console.warn('עדכון CRM נכשל:', e));
-  } catch (e) { console.warn('חיבור ל-CRM נכשל:', e); }
+      .then(({ error }) => {
+        if (error) alert('בדיקה - עדכון CRM נכשל: ' + error.message);
+        else alert('בדיקה - עדכון CRM הצליח, טלפון: ' + phone);
+      })
+      .catch(e => alert('בדיקה - עדכון CRM נכשל (שגיאת רשת): ' + e.message));
+  } catch (e) { alert('בדיקה - חיבור ל-CRM נכשל: ' + e.message); }
 
   showSuccess(name);
 }
