@@ -694,7 +694,7 @@ function submitForm() {
       'https://zcdlegcvfirwzitfxjcs.supabase.co',
       'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN'
     );
-    bsdCrmClient.rpc('mark_lead_agreement_signed', { p_phone: phone, p_type: 'seller' })
+    bsdCrmClient.rpc('mark_business_agreement_signed', { p_phone: phone })
       .then(({ error }) => { if (error) console.warn('עדכון CRM נכשל:', error.message); })
       .catch(e => console.warn('עדכון CRM נכשל:', e));
   } catch (e) { console.warn('חיבור ל-CRM נכשל:', e); }
