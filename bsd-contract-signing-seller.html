@@ -688,13 +688,22 @@ function submitForm() {
     console.warn('יצירת PDF לצירוף נכשלה:', err);
   });
 
-  // עדכון אוטומטי ב-BSD-CRM: סימון "יש הסכם חתום" למוכר לפי מספר טלפון
+  // עדכון אוטומטי ב-BSD-CRM: משלים עסק קיים לפי טלפון, או פותח עסק חדש אוטומטית אם אינו קיים
   try {
     const bsdCrmClient = window.supabase.createClient(
       'https://zcdlegcvfirwzitfxjcs.supabase.co',
       'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN'
     );
-    bsdCrmClient.rpc('mark_business_agreement_signed', { p_phone: phone })
+    bsdCrmClient.rpc('upsert_business_from_agreement', {
+      p_phone: phone,
+      p_owner_name: name,
+      p_biz_name: biz,
+      p_id_number: id_n,
+      p_entity: entity,
+      p_email: email,
+      p_address: document.getElementById('f_address').value,
+      p_city: document.getElementById('f_city').value
+    })
       .then(({ error }) => { if (error) console.warn('עדכון CRM נכשל:', error.message); })
       .catch(e => console.warn('עדכון CRM נכשל:', e));
   } catch (e) { console.warn('חיבור ל-CRM נכשל:', e); }
