@@ -136,7 +136,7 @@ footer a{color:var(--navy);text-decoration:none;}
 
       <div class="fg">
         <label>מינימום שכר הצלחה <span class="opt" style="font-weight:400;color:var(--gray);font-size:12px;">(לא כולל מע"מ)</span> <span class="req">*</span></label>
-        <input type="text" id="minFee" value="50,000 ₪" inputmode="decimal" dir="ltr" style="text-align:right">
+        <input type="text" id="minFee" value="35,000 ₪" inputmode="decimal" dir="ltr" style="text-align:right">
         <div class="hint">הסכום המינימלי לשכר ההצלחה – יופיע בטבלה ובגוף ההסכם (יחד עם אחוז העמלה, הגבוה מביניהם)</div>
         <div class="field-error" id="e_minfee">שדה חובה</div>
       </div>
@@ -241,7 +241,7 @@ const TYPE_TEXT = {
     payLabel: 'דמי פתיחת תיק (₪ לפני מע"מ)',
     payHint: 'דמי פתיחת תיק – יופיע בטבלת שכר הטרחה',
     payPlaceholder: '4000',
-    commHint: 'יופיע בסעיף שכר הטרחה בגוף ההסכם (50,000 ₪ או % משווי העסקה)',
+    commHint: 'יופיע בסעיף שכר הטרחה בגוף ההסכם (35,000 ₪ או % משווי העסקה)',
     previewLabel: 'מוכר עסק',
     waIntro: 'איזה כיף שהחלטת לקחת את הצעד הזה - אנחנו ב-BSD כבר מתרגשים ללוות אותך לעסקה הכי טובה שיש! 😊🚀',
   },
@@ -252,7 +252,7 @@ const TYPE_TEXT = {
     payLabel: 'דמי פתיחת תיק (₪ לפני מע"מ, ככל שיסוכם)',
     payHint: 'ברירת מחדל 0 ₪ (ניתן לשנות אם סוכם אחרת עם הקונה)',
     payPlaceholder: '0',
-    commHint: 'יופיע בסעיף שכר הטרחה: 50,000 ₪ או % משווי העסקה – הגבוה מבין השניים',
+    commHint: 'יופיע בסעיף שכר הטרחה: 35,000 ₪ או % משווי העסקה – הגבוה מבין השניים',
     previewLabel: 'קונה פוטנציאלי',
     waIntro: 'איזה יופי שאתה בדרך לעסק החדש שלך - אנחנו ב-BSD נשמח ללוות אותך צעד אחר צעד עד לעסקה הנכונה! 😊🤝',
   }
@@ -278,7 +278,7 @@ function setType(type) {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('agreementDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('oneTimePayment').value = '4,000 ₪';
-  document.getElementById('minFee').value = '50,000 ₪';
+  document.getElementById('minFee').value = '35,000 ₪';
   document.getElementById('commissionPct').value = '5%';
   document.getElementById('oneTimePayment').addEventListener('blur', () => formatMoney('oneTimePayment'));
   document.getElementById('minFee').addEventListener('blur', () => formatMoney('minFee'));
@@ -412,7 +412,7 @@ function resetForm() {
   });
   document.getElementById('agreementDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('oneTimePayment').value = '4,000 ₪';
-  document.getElementById('minFee').value = '50,000 ₪';
+  document.getElementById('minFee').value = '35,000 ₪';
   document.getElementById('commissionPct').value = '5%';
   document.getElementById('allowNameEdit').checked = false;
   document.getElementById('linkOut').classList.remove('show');
