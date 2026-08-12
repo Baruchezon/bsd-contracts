@@ -731,7 +731,7 @@ function buildPdfDocument() {
     const name = getFullName();
     const now = new Date();
     const dd=String(now.getDate()).padStart(2,'0'), mo=String(now.getMonth()+1).padStart(2,'0'), yyyy=now.getFullYear();
-    const filename = name+' - חתום - '+dd+'.'+mo+'.'+yyyy+'.pdf';
+    const filename = name+'-חתום-'+dd+'.'+mo+'.'+yyyy+'.pdf';
 
     // ודא שכל התמונות (חתימה, לוגו) סיימו להיטען, ותן לדפדפן זמן לצייר מחדש
     // (ה-print area היה display:none עד כרגע - בלי זה, html2canvas עלול לצלם לפני שהתוכן נטען/צויר, וזה גורם לחתימה/פרטים חסרים)
