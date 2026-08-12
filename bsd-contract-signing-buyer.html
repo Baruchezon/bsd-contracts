@@ -668,13 +668,23 @@ ${notesLine}🔢 *מספר הסכם:* ${cid}
     console.warn('יצירת PDF לצירוף נכשלה:', err);
   });
 
-  // עדכון אוטומטי ב-BSD-CRM: סימון "יש הסכם חתום" לקונה לפי מספר טלפון
+  // עדכון אוטומטי ב-BSD-CRM: משלים ליד קיים לפי טלפון, או פותח ליד חדש אוטומטית אם אינו קיים
   try {
     const bsdCrmClient = window.supabase.createClient(
       'https://zcdlegcvfirwzitfxjcs.supabase.co',
       'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN'
     );
-    bsdCrmClient.rpc('mark_lead_agreement_signed', { p_phone: phone, p_type: 'buyer' })
+    bsdCrmClient.rpc('upsert_lead_from_agreement', {
+      p_phone: phone,
+      p_type: 'buyer',
+      p_full_name: name,
+      p_id_number: id_n,
+      p_entity: entity,
+      p_email: email,
+      p_address: addr,
+      p_city: document.getElementById('f_city').value,
+      p_agreement_number: cid
+    })
       .then(({ error }) => { if (error) console.warn('עדכון CRM נכשל:', error.message); })
       .catch(e => console.warn('עדכון CRM נכשל:', e));
   } catch (e) { console.warn('חיבור ל-CRM נכשל:', e); }

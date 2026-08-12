@@ -703,7 +703,8 @@ function submitForm() {
       p_entity: entity,
       p_email: email,
       p_address: document.getElementById('f_address').value,
-      p_city: document.getElementById('f_city').value
+      p_city: document.getElementById('f_city').value,
+      p_agreement_number: cid
     })
       .then(({ error }) => { if (error) console.warn('עדכון CRM נכשל:', error.message); })
       .catch(e => console.warn('עדכון CRM נכשל:', e));
