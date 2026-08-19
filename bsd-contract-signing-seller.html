@@ -721,8 +721,11 @@ function submitForm() {
         });
         if (bizId) {
           const path = `agreements/businesses/${bizId}.pdf`;
+          // בלי upsert:true בכוונה - עדכון (upsert) על קובץ קיים דורש מדיניות UPDATE
+          // נוספת ב-Storage שגורמת לבעיות RLS לא צפויות; במקרה הנדיר של חתימה חוזרת
+          // על אותו עסק, ההעלאה תיכשל בשקט (המייל עדיין נשלח כרגיל) - ניתן לשפר בהמשך
           const { error: upErr } = await bsdCrmClient.storage.from('business-files')
-            .upload(path, pdfBlob, { upsert: true, contentType: 'application/pdf' });
+            .upload(path, pdfBlob, { upsert: false, contentType: 'application/pdf' });
           if (upErr) { console.warn('העלאת הסכם ל-Storage נכשלה:', upErr.message); return; }
           const { error: saveErr } = await bsdCrmClient.rpc('save_agreement_pdf_path', {
             p_table_name: 'businesses', p_phone: phone, p_path: path
