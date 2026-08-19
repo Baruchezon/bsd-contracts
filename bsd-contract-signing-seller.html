@@ -676,39 +676,64 @@ function submitForm() {
     body: JSON.stringify(formFields)
   }).catch(e => console.warn('FormSubmit (טקסט):', e));
 
-  // 2) שלח בנוסף מייל עם קובץ ה-PDF החתום מצורף בפועל (endpoint הרגיל, לא ה-ajax, כי צירוף קבצים דורש אותו)
+  // בונה את ה-PDF פעם אחת בלבד, ומשתמש באותו קובץ גם לצירוף במייל
+  // וגם לשמירה הקבועה בכרטיס העסק ב-BSD-CRM (ולא בונה אותו פעמיים)
+  const bsdCrmClient = window.supabase.createClient(
+    'https://zcdlegcvfirwzitfxjcs.supabase.co',
+    'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN'
+  );
+
+  // עדכון אוטומטי ב-BSD-CRM: משלים עסק קיים לפי טלפון, או פותח עסק חדש אוטומטית אם אינו קיים -
+  // חייב לרוץ ולהסתיים לפני שמחפשים את הרשומה לצורך שמירת קובץ ה-PDF, אחרת אם זה עסק חדש
+  // הרשומה עוד לא קיימת ברגע החיפוש
+  const upsertPromise = bsdCrmClient.rpc('upsert_business_from_agreement', {
+    p_phone: phone,
+    p_owner_name: name,
+    p_biz_name: biz,
+    p_id_number: id_n,
+    p_entity: entity,
+    p_email: email,
+    p_address: document.getElementById('f_address').value,
+    p_city: document.getElementById('f_city').value,
+    p_agreement_number: cid
+  }).then(({ error }) => { if (error) console.warn('עדכון CRM נכשל:', error.message); })
+    .catch(e => console.warn('עדכון CRM נכשל:', e));
+
+  // בונה את ה-PDF פעם אחת בלבד, ומשתמש באותו קובץ גם לצירוף במייל
+  // וגם לשמירה הקבועה בכרטיס העסק ב-BSD-CRM (ולא בונה אותו פעמיים)
   buildPdfDocument().then(({ pdf, filename }) => {
     const pdfBlob = pdf.output('blob');
+
+    // 2) מייל עם קובץ ה-PDF החתום מצורף בפועל (endpoint הרגיל, לא ה-ajax, כי צירוף קבצים דורש אותו)
     const fd = new FormData();
     Object.entries(formFields).forEach(([k,v]) => fd.append(k, v));
     fd.append('attachment', pdfBlob, filename);
     fetch('https://formsubmit.co/baruch.ezon@gmail.com', { method: 'POST', body: fd })
       .then(r => { if (!r.ok) console.warn('FormSubmit (PDF מצורף) החזיר סטטוס:', r.status); })
       .catch(e => console.warn('FormSubmit (PDF מצורף):', e));
-  }).catch(err => {
-    console.warn('יצירת PDF לצירוף נכשלה:', err);
-  });
 
-  // עדכון אוטומטי ב-BSD-CRM: משלים עסק קיים לפי טלפון, או פותח עסק חדש אוטומטית אם אינו קיים
-  try {
-    const bsdCrmClient = window.supabase.createClient(
-      'https://zcdlegcvfirwzitfxjcs.supabase.co',
-      'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN'
-    );
-    bsdCrmClient.rpc('upsert_business_from_agreement', {
-      p_phone: phone,
-      p_owner_name: name,
-      p_biz_name: biz,
-      p_id_number: id_n,
-      p_entity: entity,
-      p_email: email,
-      p_address: document.getElementById('f_address').value,
-      p_city: document.getElementById('f_city').value,
-      p_agreement_number: cid
-    })
-      .then(({ error }) => { if (error) console.warn('עדכון CRM נכשל:', error.message); })
-      .catch(e => console.warn('עדכון CRM נכשל:', e));
-  } catch (e) { console.warn('חיבור ל-CRM נכשל:', e); }
+    // 3) שמירה קבועה של אותו קובץ בדיוק ב-Storage של BSD-CRM, כדי שיהיה נגיש מכרטיס העסק -
+    // רק אחרי שהעסק בוודאות כבר נוצר/עודכן (ראה upsertPromise למעלה)
+    upsertPromise.then(async () => {
+      try {
+        const { data: bizId } = await bsdCrmClient.rpc('find_agreement_record', {
+          p_table_name: 'businesses', p_phone: phone
+        });
+        if (bizId) {
+          const path = `agreements/businesses/${bizId}.pdf`;
+          const { error: upErr } = await bsdCrmClient.storage.from('business-files')
+            .upload(path, pdfBlob, { upsert: true, contentType: 'application/pdf' });
+          if (upErr) { console.warn('העלאת הסכם ל-Storage נכשלה:', upErr.message); return; }
+          const { error: saveErr } = await bsdCrmClient.rpc('save_agreement_pdf_path', {
+            p_table_name: 'businesses', p_phone: phone, p_path: path
+          });
+          if (saveErr) console.warn('שמירת נתיב ההסכם נכשלה:', saveErr.message);
+        }
+      } catch (e) { console.warn('שמירת ההסכם ב-CRM נכשלה:', e); }
+    });
+  }).catch(err => {
+    console.warn('יצירת PDF לצירוף/שמירה נכשלה:', err);
+  });
 
   showSuccess(name);
 }
