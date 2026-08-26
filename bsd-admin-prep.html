@@ -47,6 +47,23 @@ body{font-family:'Heebo',Arial,sans-serif;background:var(--bg);color:#1A1A2E;dir
 .hidden-field{display:none !important;}
 .field-error{font-size:12px;color:var(--red);margin-top:3px;display:none;}
 .field-error.show{display:block;}
+.comm-mode-toggle{display:flex;gap:10px;margin-bottom:4px;}
+.comm-mode-btn{flex:1;text-align:center;padding:9px 8px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-family:'Heebo',Arial,sans-serif;font-weight:600;font-size:13px;color:var(--gray);transition:all .2s;}
+.comm-mode-btn.active{border-color:var(--navy);background:var(--navy);color:var(--white);}
+.comm-mode-btn:hover:not(.active){border-color:var(--gold);}
+.tier-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;}
+.tier-row .tier-idx{min-width:66px;flex-shrink:0;font-size:13px;font-weight:700;color:var(--navy);}
+.tier-row input{border:1.5px solid var(--border);border-radius:7px;padding:8px 10px;font-family:'Heebo',Arial,sans-serif;font-size:13px;direction:ltr;text-align:center;width:90px;}
+.tier-row input.tier-upto{width:130px;}
+.tier-row .tier-label{font-size:12.5px;color:var(--gray);white-space:nowrap;}
+.tier-row .tier-del{background:transparent;border:1.5px solid var(--border);color:var(--red);border-radius:7px;padding:6px 9px;cursor:pointer;font-size:13px;}
+.tier-row .tier-del:hover:not(:disabled){border-color:var(--red);background:#FEF2F2;}
+.tier-row .tier-del:disabled{opacity:.35;cursor:not-allowed;}
+.btn-add-tier{background:transparent;border:1.5px dashed var(--navy);color:var(--navy);border-radius:8px;padding:8px 14px;font-family:'Heebo',Arial,sans-serif;font-size:13px;font-weight:600;cursor:pointer;}
+.btn-add-tier:hover{background:#F7F8FB;}
+.btn-add-tier:disabled{opacity:.4;cursor:not-allowed;}
+.preview-tiers{margin-top:4px;}
+.preview-tiers div{font-size:12.5px;color:var(--navy);padding:2px 0;}
 .err-banner{background:#FEF2F2;border:1.5px solid #FECACA;border-radius:8px;padding:10px 15px;color:var(--red);font-size:13px;font-weight:600;margin-bottom:12px;display:none;text-align:center;}
 .err-banner.show{display:block;}
 .preview-box{background:#F7F8FB;border:1.5px solid var(--border);border-radius:10px;padding:16px 20px;font-size:13px;line-height:1.95;}
@@ -142,11 +159,27 @@ footer a{color:var(--navy);text-decoration:none;}
         <div class="field-error" id="e_minfee">שדה חובה</div>
       </div>
 
-      <div class="fg">
+      <div class="fg full">
+        <label style="cursor:default;">מבנה עמלה</label>
+        <div class="comm-mode-toggle">
+          <button type="button" class="comm-mode-btn active" id="commModeBtnFlat" onclick="setCommissionMode('flat')">עמלה אחידה</button>
+          <button type="button" class="comm-mode-btn" id="commModeBtnTiered" onclick="setCommissionMode('tiered')">עמלה מדורגת</button>
+        </div>
+      </div>
+
+      <div class="fg" id="wrap_comm_flat">
         <label id="lbl_comm">אחוז עמלה מהעסקה <span class="req">*</span></label>
         <input type="text" id="commissionPct" value="5%" inputmode="decimal" dir="ltr" style="text-align:right">
         <div class="hint" id="hint_comm">יופיע בסעיף שכר הטרחה בגוף ההסכם</div>
         <div class="field-error" id="e_comm">שדה חובה</div>
+      </div>
+
+      <div class="fg full hidden-field" id="wrap_comm_tiered">
+        <label>מדרגות עמלה <span class="req">*</span></label>
+        <div id="tiersContainer"></div>
+        <button type="button" class="btn-add-tier" id="btnAddTier" onclick="addTier()">➕ הוסף מדרגה</button>
+        <div class="hint">כל מדרגה חלה רק על החלק הרלוונטי מתוך כלל התמורה. המדרגה האחרונה חלה אוטומטית על יתרת התמורה (ללא הגבלת סכום).</div>
+        <div class="field-error" id="e_tiers">יש להזין אחוזים וסכומים תקינים ועולים לכל המדרגות</div>
       </div>
 
       <div class="fg">
@@ -180,7 +213,8 @@ footer a{color:var(--navy);text-decoration:none;}
       <div class="preview-row" id="pvrow_biz"><span class="pl">שם העסק:</span><span class="pv" id="pv_biz">–</span></div>
       <div class="preview-row" id="pvrow_pay"><span class="pl">תשלום חד-פעמי:</span><span class="pv" id="pv_pay">–</span></div>
       <div class="preview-row"><span class="pl">מינימום שכר הצלחה:</span><span class="pv" id="pv_minfee">–</span></div>
-      <div class="preview-row"><span class="pl">אחוז עמלה:</span><span class="pv" id="pv_comm">–</span></div>
+      <div class="preview-row" id="pvrow_comm_flat"><span class="pl">אחוז עמלה:</span><span class="pv" id="pv_comm">–</span></div>
+      <div class="preview-row hidden-field" id="pvrow_comm_tiered" style="flex-direction:column;"><span class="pl">מדרגות עמלה:</span><div class="preview-tiers pv" id="pv_tiers"></div></div>
       <div class="preview-row"><span class="pl">תאריך ההסכם:</span><span class="pv" id="pv_date">–</span></div>
       <div class="preview-row" id="pv_notes_row" style="display:none"><span class="pl">הערות:</span><span class="pv" id="pv_notes">–</span></div>
       <div class="preview-row"><span class="pl">שם ניתן לעריכה:</span><span class="pv" id="pv_edit">לא</span></div>
@@ -276,6 +310,82 @@ function setType(type) {
   updatePreview();
 }
 
+/* ─────────── מדרגות עמלה ─────────── */
+let commissionMode = 'flat'; // 'flat' | 'tiered'
+function defaultTiers() { return [ {pct:5, upTo:3000000}, {pct:3, upTo:null} ]; }
+let tiers = defaultTiers();
+
+function setCommissionMode(mode) {
+  commissionMode = mode;
+  document.getElementById('commModeBtnFlat').classList.toggle('active', mode==='flat');
+  document.getElementById('commModeBtnTiered').classList.toggle('active', mode==='tiered');
+  document.getElementById('wrap_comm_flat').classList.toggle('hidden-field', mode==='tiered');
+  document.getElementById('wrap_comm_tiered').classList.toggle('hidden-field', mode==='flat');
+  document.getElementById('pvrow_comm_flat').classList.toggle('hidden-field', mode==='tiered');
+  document.getElementById('pvrow_comm_tiered').classList.toggle('hidden-field', mode==='flat');
+  if (mode === 'tiered') renderTiers();
+  updatePreview();
+}
+
+function renderTiers() {
+  const box = document.getElementById('tiersContainer');
+  box.innerHTML = tiers.map((t, i) => {
+    const isLast = i === tiers.length - 1;
+    const uptoField = isLast
+      ? `<span class="tier-label">ומעלה (ללא הגבלה)</span>`
+      : `<span class="tier-label">עד</span><input type="text" class="tier-upto" data-idx="${i}" value="${Number(t.upTo||0).toLocaleString('he-IL')}" inputmode="decimal"><span class="tier-label">₪</span>`;
+    return `<div class="tier-row">
+      <span class="tier-idx">מדרגה ${i+1}</span>
+      <input type="text" class="tier-pct" data-idx="${i}" value="${t.pct}" inputmode="decimal">
+      <span class="tier-label">%</span>
+      ${uptoField}
+      <button type="button" class="tier-del" data-idx="${i}" ${tiers.length<=2?'disabled':''} onclick="removeTier(${i})">🗑</button>
+    </div>`;
+  }).join('');
+  box.querySelectorAll('.tier-pct').forEach(el => {
+    el.addEventListener('input', () => { tiers[el.dataset.idx].pct = el.value; updatePreview(); });
+    el.addEventListener('blur', () => { const n=parseFloat(String(el.value).replace(/[^\d.]/g,''))||0; el.value=n; tiers[el.dataset.idx].pct=n; updatePreview(); });
+  });
+  box.querySelectorAll('.tier-upto').forEach(el => {
+    el.addEventListener('input', () => { tiers[el.dataset.idx].upTo = el.value; updatePreview(); });
+    el.addEventListener('blur', () => { const n=parseFloat(String(el.value).replace(/[^\d.]/g,''))||0; el.value=n.toLocaleString('he-IL'); tiers[el.dataset.idx].upTo=n; updatePreview(); });
+  });
+  document.getElementById('btnAddTier').disabled = tiers.length >= 6;
+}
+
+function addTier() {
+  if (tiers.length >= 6) return;
+  const insertIdx = tiers.length - 1;
+  const prevUpTo = insertIdx > 0 ? Number(tiers[insertIdx-1].upTo || 0) : 0;
+  tiers.splice(insertIdx, 0, {pct: 3, upTo: prevUpTo + 5000000});
+  renderTiers();
+  updatePreview();
+}
+
+function removeTier(idx) {
+  if (tiers.length <= 2) return;
+  tiers.splice(idx, 1);
+  renderTiers();
+  updatePreview();
+}
+
+function describeTiers(tierArr) {
+  let prev = 0;
+  return tierArr.map((t, i) => {
+    const isLast = i === tierArr.length - 1;
+    let label;
+    if (i === 0) {
+      label = isLast ? 'על כלל התמורה' : `על החלק שעד ${Number(t.upTo).toLocaleString('he-IL')} ₪`;
+    } else if (isLast) {
+      label = `על החלק שמעל ${Number(prev).toLocaleString('he-IL')} ₪`;
+    } else {
+      label = `על החלק שבין ${Number(prev).toLocaleString('he-IL')} ₪ ל-${Number(t.upTo).toLocaleString('he-IL')} ₪`;
+    }
+    prev = t.upTo;
+    return `${t.pct}% ${label}`;
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('agreementDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('oneTimePayment').value = '4,000 ₪';
@@ -285,6 +395,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('minFee').addEventListener('blur', () => formatMoney('minFee'));
   document.getElementById('commissionPct').addEventListener('blur', () => formatPercent('commissionPct'));
   setType('seller');
+  renderTiers();
+  setCommissionMode('flat');
 
   // מילוי אוטומטי מקישור (בא מה-CRM): ?type=seller|buyer&name=...&phone=...&biz=...
   const params = new URLSearchParams(window.location.search);
@@ -317,6 +429,9 @@ function updatePreview() {
   document.getElementById('pv_pay').textContent   = pay.toLocaleString('he-IL')+' ₪ (לא כולל מע"מ)';
   document.getElementById('pv_minfee').textContent = minFee.toLocaleString('he-IL')+' ₪ (לא כולל מע"מ)';
   document.getElementById('pv_comm').textContent  = comm+'%';
+  if (commissionMode === 'tiered') {
+    document.getElementById('pv_tiers').innerHTML = describeTiers(tiers).map(s=>`<div>• ${s}</div>`).join('');
+  }
   if (date) { const [y,m,d]=date.split('-'); document.getElementById('pv_date').textContent=d+'/'+m+'/'+y; }
   else document.getElementById('pv_date').textContent='–';
   if (notes) { document.getElementById('pv_notes').textContent=notes; document.getElementById('pv_notes_row').style.display='flex'; }
@@ -329,7 +444,27 @@ function validate() {
   function chk(id,eid){ const v=document.getElementById(id).value.trim(); const e=document.getElementById(eid); if(!v){document.getElementById(id).classList.add('error');e.classList.add('show');ok=false;}else{document.getElementById(id).classList.remove('error');e.classList.remove('show');} }
   chk('clientName','e_name'); chk('clientPhone','e_phone');
   if (agreementType === 'seller') { chk('businessName','e_biz'); chk('oneTimePayment','e_pay'); }
-  chk('minFee','e_minfee'); chk('commissionPct','e_comm'); chk('agreementDate','e_date');
+  chk('minFee','e_minfee'); chk('agreementDate','e_date');
+
+  if (commissionMode === 'flat') {
+    chk('commissionPct','e_comm');
+  } else {
+    let tiersOk = tiers.length >= 2;
+    let prevUpTo = 0;
+    tiers.forEach((t, i) => {
+      const pct = Number(t.pct);
+      if (!(pct > 0 && pct <= 100)) tiersOk = false;
+      if (i < tiers.length - 1) {
+        const upTo = Number(t.upTo);
+        if (!(upTo > prevUpTo)) tiersOk = false;
+        prevUpTo = upTo;
+      }
+    });
+    const e = document.getElementById('e_tiers');
+    e.classList.toggle('show', !tiersOk);
+    if (!tiersOk) ok = false;
+  }
+
   document.getElementById('errBanner').classList.toggle('show',!ok);
   return ok;
 }
@@ -344,7 +479,16 @@ function generate() {
     p.set('oneTimePayment', numFrom('oneTimePayment'));
   }
   p.set('minFee', numFrom('minFee'));
-  p.set('commissionPercentage', numFrom('commissionPct'));
+  p.set('commissionMode', commissionMode);
+  if (commissionMode === 'flat') {
+    p.set('commissionPercentage', numFrom('commissionPct'));
+  } else {
+    const cleanTiers = tiers.map((t,i) => ({
+      pct: Number(t.pct),
+      upTo: (i === tiers.length-1) ? null : Number(t.upTo)
+    }));
+    p.set('commissionTiers', JSON.stringify(cleanTiers));
+  }
   p.set('agreementDate', document.getElementById('agreementDate').value);
   p.set('allowNameEdit', document.getElementById('allowNameEdit').checked ? '1' : '0');
   const notes = document.getElementById('notes').value.trim();
@@ -374,7 +518,9 @@ function sendWA() {
   const phone = document.getElementById('clientPhone').value.trim();
   const pay   = numFrom('oneTimePayment').toLocaleString('he-IL');
   const minFee = numFrom('minFee').toLocaleString('he-IL');
-  const comm  = numFrom('commissionPct');
+  const commText = commissionMode === 'tiered'
+    ? describeTiers(tiers).join(' + ')
+    : numFrom('commissionPct') + '%';
   const dateR = document.getElementById('agreementDate').value;
   let dateFmt = dateR;
   if (dateR) { const [y,m,d]=dateR.split('-'); dateFmt=d+'/'+m+'/'+y; }
@@ -392,7 +538,7 @@ function sendWA() {
 ${t.waIntro}
 
 📋 *פרטי ההסכם:*
-${bizLine}${payLine}• שכר הצלחה מינימלי: ${minFee} ₪ (לא כולל מע"מ) (או ${comm}% מהעסקה, הגבוה מביניהם)
+${bizLine}${payLine}• שכר הצלחה מינימלי: ${minFee} ₪ (לא כולל מע"מ) (או ${commText} מהעסקה, הגבוה מביניהם)
 • תאריך: ${dateFmt}
 
 לחץ על הקישור הבא, קרא את ההסכם, מלא את פרטיך וחתום:
@@ -415,6 +561,10 @@ function resetForm() {
   document.getElementById('oneTimePayment').value = '4,000 ₪';
   document.getElementById('minFee').value = '35,000 ₪';
   document.getElementById('commissionPct').value = '5%';
+  tiers = defaultTiers();
+  setCommissionMode('flat');
+  renderTiers();
+  document.getElementById('e_tiers').classList.remove('show');
   document.getElementById('allowNameEdit').checked = false;
   document.getElementById('linkOut').classList.remove('show');
   document.getElementById('errBanner').classList.remove('show');

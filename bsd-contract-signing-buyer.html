@@ -386,12 +386,13 @@ const BUYER_CONTRACT_HTML = `
       <tr class="bold-row">
         <td>שכר הצלחה<br><small>בעת השלמת עסקה מחייבת</small></td>
         <td>תוך 7 ימים מחתימת הסכם מחייב</td>
-        <td><span class="ct_minFee">35,000</span> ₪ + מע"מ<br>או <span id="ct_commission">5</span>% + מע"מ מכלל התמורה בעסקה<br><small>(הגבוה מבין השניים)</small></td>
+        <td><span class="ct_minFee">35,000</span> ₪ + מע"מ<br><span id="ct_commission_flat">או <span id="ct_commission">5</span>% + מע"מ מכלל התמורה בעסקה<br><small>(הגבוה מבין השניים)</small></span><span id="ct_commission_tiered" style="display:none;">או לפי מדרגות העמלה המפורטות בסעיף 5.1 להלן + מע"מ מכלל התמורה בעסקה<br><small>(הגבוה מבין השניים)</small></span></td>
       </tr>
     </tbody>
   </table>
 
-  <p><strong>5.1</strong> במקרה שבו הלקוח יחתום על הסכם רכישה או השקעה מחייב מול עסק, מוכר או גורם שהוצג לו על ידי BSD, ישלם הלקוח ל-BSD שכר טרחה בסך <span class="ct_minFee">35,000</span> ₪ בתוספת מע"מ, או 5% בתוספת מע"מ מכלל התמורה בעסקה (כהגדרתה בסעיף 5.3 להלן) – הגבוה מבין השניים.</p>
+  <p id="p_fee_51"><strong>5.1</strong> במקרה שבו הלקוח יחתום על הסכם רכישה או השקעה מחייב מול עסק, מוכר או גורם שהוצג לו על ידי BSD, ישלם הלקוח ל-BSD שכר טרחה בסך <span class="ct_minFee">35,000</span> ₪ בתוספת מע"מ, או 5% בתוספת מע"מ מכלל התמורה בעסקה (כהגדרתה בסעיף 5.3 להלן) – הגבוה מבין השניים.</p>
+  <div id="tieredFeeBlock" style="display:none;"></div>
   <p><strong>5.2</strong> שכר הטרחה ישולם בתוך 7 ימים ממועד חתימת הסכם מחייב, אלא אם סוכם אחרת בכתב.</p>
   <p><strong>5.3</strong> "כלל התמורה" פירושה מלוא היקף התמורה בקשר לעסקה, מכל סוג ובכל דרך שבה תשולם או תועבר, לרבות התמורה בגין העסק, הפעילות, המוניטין, הציוד, הנכסים, הזכויות והמלאי, וכן התחייבויות שיילקחו על ידי הקונה, ככל שהן חלק מהעסקה. שיעור שכר הטרחה יחושב מתוך כלל התמורה כאמור, לרבות במקרה שבו רכיב מרכיבי התמורה (ובכלל זה מלאי) משולם בנפרד, בתשלומים, לפי ספירה בפועל, לפי מכירה עתידית, או בכל מתווה תשלום אחר שסוכם בין הקונה למוכר, ככל שהוא מהווה חלק מהעסקה.</p>
 
@@ -414,6 +415,58 @@ const BUYER_CONTRACT_HTML = `
 function applyMinFee(minFeeVal) {
   const val = minFeeVal ? Number(minFeeVal).toLocaleString('he-IL') : '35,000';
   document.querySelectorAll('.ct_minFee').forEach(el => el.textContent = val);
+}
+
+/* ─────────── מדרגות עמלה ─────────── */
+let commissionSummaryText = null; // מוגדר רק כאשר נבחרה עמלה מדורגת
+
+function computeTierRanges(tierArr) {
+  let prev = 0;
+  return tierArr.map((t, i) => {
+    const isLast = (i === tierArr.length - 1) || t.upTo == null;
+    let label;
+    if (i === 0) {
+      label = isLast ? 'על כלל התמורה' : `על החלק שעד ${Number(t.upTo).toLocaleString('he-IL')} ₪`;
+    } else if (isLast) {
+      label = `על החלק שמעל ${Number(prev).toLocaleString('he-IL')} ₪`;
+    } else {
+      label = `על החלק שבין ${Number(prev).toLocaleString('he-IL')} ₪ ל-${Number(t.upTo).toLocaleString('he-IL')} ₪`;
+    }
+    prev = t.upTo;
+    return { pct: t.pct, label };
+  });
+}
+
+function applyCommission(p) {
+  const mode = p.get('commissionMode') || 'flat';
+  if (mode === 'tiered' && p.get('commissionTiers')) {
+    let parsedTiers = null;
+    try { parsedTiers = JSON.parse(p.get('commissionTiers')); } catch (e) { parsedTiers = null; }
+    if (Array.isArray(parsedTiers) && parsedTiers.length >= 1) {
+      const ranges = computeTierRanges(parsedTiers);
+      commissionSummaryText = ranges.map(r => `${r.pct}% ${r.label}`).join(' + ');
+
+      document.getElementById('ct_commission_flat').style.display = 'none';
+      document.getElementById('ct_commission_tiered').style.display = '';
+
+      const rowsHtml = ranges.map((r, i) => `<tr><td>${i+1}</td><td>${r.label}</td><td>${r.pct}%</td></tr>`).join('');
+      document.getElementById('p_fee_51').style.display = 'none';
+      const block = document.getElementById('tieredFeeBlock');
+      block.style.display = '';
+      block.innerHTML = `
+        <p><strong>5.1</strong> במקרה שבו הלקוח יחתום על הסכם רכישה או השקעה מחייב מול עסק, מוכר או גורם שהוצג לו על ידי BSD, ישלם הלקוח ל-BSD שכר טרחה בסך <span class="ct_minFee">35,000</span> ₪ בתוספת מע"מ, או לפי מדרגות העמלה המפורטות בטבלה שלהלן, מחושבות מתוך כלל התמורה בעסקה (כהגדרתה בסעיף 5.3 להלן) – לפי הגבוה מביניהם. כל שיעור עמלה במדרגות חל על החלק הרלוונטי בלבד מתוך כלל התמורה, כך ששכר הטרחה הכולל הינו סכום כל המדרגות החלות, ולא אחוז אחד המחושב על מלוא הסכום.</p>
+        <table class="fee-table">
+          <thead><tr><th>מדרגה</th><th>טווח כלל התמורה</th><th>שיעור עמלה</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      `;
+      return;
+    }
+  }
+  // עמלה אחידה (ברירת מחדל / תאימות לאחור להסכמים ישנים)
+  if (p.get('commissionPercentage')) {
+    document.getElementById('ct_commission').textContent = p.get('commissionPercentage');
+  }
 }
 
 /* ─────────── INIT ─────────── */
@@ -473,9 +526,7 @@ document.addEventListener('DOMContentLoaded', () => {
     hasParams = true;
   }
   applyMinFee(p.get('minFee'));
-  if (p.get('commissionPercentage')) {
-    document.getElementById('ct_commission').textContent = p.get('commissionPercentage');
-  }
+  applyCommission(p);
   if (p.get('notes') && p.get('notes').trim()) {
     document.getElementById('ct_notes').textContent = p.get('notes');
     document.getElementById('notesSection').style.display = 'block';
@@ -605,7 +656,7 @@ function submitForm() {
   const cid    = document.getElementById('contractNum').textContent;
   const minFeeEl = document.querySelector('.ct_minFee');
   const minFee = minFeeEl ? minFeeEl.textContent : '35,000';
-  const comm   = document.getElementById('ct_commission').textContent;
+  const comm   = commissionSummaryText || (document.getElementById('ct_commission').textContent + '%');
   const sigTime= confirmTime ? confirmTime.toLocaleDateString('he-IL')+' '+confirmTime.toLocaleTimeString('he-IL') : dt;
 
   const id_n   = document.getElementById('f_id').value;
@@ -627,7 +678,7 @@ function submitForm() {
 ${entityLine}📱 *טלפון:* ${phone}
 📧 *אימייל:* ${email}
 🏠 *כתובת:* ${addr}
-💰 *מינימום שכר הצלחה:* ${minFee} ₪ + מע"מ (או ${comm}% מהעסקה, הגבוה מביניהם)
+💰 *מינימום שכר הצלחה:* ${minFee} ₪ + מע"מ (או ${comm} מהעסקה, הגבוה מביניהם)
 ${notesLine}🔢 *מספר הסכם:* ${cid}
 ⏰ *תאריך חתימה:* ${sigTime}
 
@@ -645,7 +696,7 @@ ${notesLine}🔢 *מספר הסכם:* ${cid}
     'שם': name, 'ת.ז./ח.פ.': id_n, 'חברה/עוסק': entity, 'טלפון': phone,
     'אימייל': email, 'כתובת': addr,
     'מספר הסכם': cid, 'תאריך': sigTime,
-    'מינימום שכר הצלחה': minFee+' ₪', 'עמלה': comm+'%',
+    'מינימום שכר הצלחה': minFee+' ₪', 'עמלה': comm,
   }, notes ? {'הערות': notes} : {});
 
   // 1) שלח הודעת מייל טקסטואלית - זהה למנגנון שכבר הוכח כעובד (בלי קובץ מצורף)
