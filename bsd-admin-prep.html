@@ -8,6 +8,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BSD – ממשק הכנת הסכם</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--navy:#1B2A4A;--navy2:#243561;--gold:#B89630;--gold2:#D4AF37;--bg:#F4F5F7;--border:#D0D5DD;--gray:#6B7280;--white:#fff;--red:#DC2626;--green:#16A34A;}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -547,7 +548,12 @@ function validate() {
   return ok;
 }
 
-function generate() {
+const bsdSupabase = window.supabase ? window.supabase.createClient(
+  'https://zcdlegcvfirwzitfxjcs.supabase.co',
+  'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN'
+) : null;
+
+async function generate() {
   if (!validate()) return;
   const p = new URLSearchParams();
   p.set('clientName', document.getElementById('clientName').value.trim());
@@ -555,9 +561,27 @@ function generate() {
 
   if (agreementType === 'broker') {
     const brokerId = document.getElementById('brokerId').value.trim();
-    if (brokerId) p.set('brokerId', brokerId);
+    const pct = numFrom('commissionPct2');
+    if (brokerId) {
+      p.set('brokerId', brokerId);
+      const genBtn = document.querySelector('.btn-generate');
+      genBtn.disabled = true; genBtn.textContent = '⏳ שומר ויוצר קישור...';
+      try {
+        const { error } = await bsdSupabase.rpc('set_broker_commission', {
+          p_broker_id: brokerId, p_commission_type: brokerCommissionType, p_pct: pct
+        });
+        if (error) {
+          document.getElementById('errBanner').textContent = 'שמירת אחוז העמלה נכשלה: ' + error.message + ' (הקישור לא נוצר)';
+          document.getElementById('errBanner').classList.add('show');
+          genBtn.disabled = false; genBtn.textContent = '🔗 יצירת קישור להסכם';
+          return;
+        }
+      } finally {
+        genBtn.disabled = false; genBtn.textContent = '🔗 יצירת קישור להסכם';
+      }
+    }
     p.set('commissionType', brokerCommissionType);
-    p.set('pct', numFrom('commissionPct2'));
+    p.set('pct', pct);
     p.set('agreementDate', document.getElementById('agreementDate').value);
     const notesB = document.getElementById('notes').value.trim();
     if (notesB) p.set('notes', notesB);
