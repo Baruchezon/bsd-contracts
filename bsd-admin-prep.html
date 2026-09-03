@@ -122,6 +122,9 @@ footer a{color:var(--navy);text-decoration:none;}
       <button type="button" class="type-btn" id="typeBtnBuyer" onclick="setType('buyer')">
         <span class="ti">🤝</span> הסכם מול קונה פוטנציאלי
       </button>
+      <button type="button" class="type-btn" id="typeBtnBroker" onclick="setType('broker')">
+        <span class="ti">🧑‍💼</span> הסכם התקשרות עם מתווך
+      </button>
     </div>
 
     <div class="form-grid">
@@ -182,6 +185,21 @@ footer a{color:var(--navy);text-decoration:none;}
         <div class="field-error" id="e_tiers">יש להזין אחוזים וסכומים תקינים ועולים לכל המדרגות</div>
       </div>
 
+      <div class="fg hidden-field" id="wrap_referralPct">
+        <label>אחוז עמלת הפניה <span class="req">*</span></label>
+        <input type="text" id="referralPct" value="20%" inputmode="decimal" dir="ltr" style="text-align:right">
+        <div class="hint">ברירת המחדל נטענת מהגדרות האדמין; ניתן לשנות פרטנית למתווך זה בלבד</div>
+        <div class="field-error" id="e_referralPct">שדה חובה</div>
+      </div>
+      <input type="hidden" id="brokerId" value="">
+
+      <div class="fg hidden-field" id="wrap_fullPct">
+        <label>אחוז עמלת טיפול מלא <span class="req">*</span></label>
+        <input type="text" id="fullHandlingPct" value="50%" inputmode="decimal" dir="ltr" style="text-align:right">
+        <div class="hint">ברירת המחדל נטענת מהגדרות האדמין; ניתן לשנות פרטנית למתווך זה בלבד</div>
+        <div class="field-error" id="e_fullPct">שדה חובה</div>
+      </div>
+
       <div class="fg">
         <label>תאריך ההסכם <span class="req">*</span></label>
         <input type="date" id="agreementDate" dir="ltr" style="text-align:right">
@@ -215,6 +233,8 @@ footer a{color:var(--navy);text-decoration:none;}
       <div class="preview-row"><span class="pl">מינימום שכר הצלחה:</span><span class="pv" id="pv_minfee">–</span></div>
       <div class="preview-row" id="pvrow_comm_flat"><span class="pl">אחוז עמלה:</span><span class="pv" id="pv_comm">–</span></div>
       <div class="preview-row hidden-field" id="pvrow_comm_tiered" style="flex-direction:column;"><span class="pl">מדרגות עמלה:</span><div class="preview-tiers pv" id="pv_tiers"></div></div>
+      <div class="preview-row hidden-field" id="pvrow_referralPct"><span class="pl">אחוז הפניה:</span><span class="pv" id="pv_referralPct">–</span></div>
+      <div class="preview-row hidden-field" id="pvrow_fullPct"><span class="pl">אחוז טיפול מלא:</span><span class="pv" id="pv_fullPct">–</span></div>
       <div class="preview-row"><span class="pl">תאריך ההסכם:</span><span class="pv" id="pv_date">–</span></div>
       <div class="preview-row" id="pv_notes_row" style="display:none"><span class="pl">הערות:</span><span class="pv" id="pv_notes">–</span></div>
       <div class="preview-row"><span class="pl">שם ניתן לעריכה:</span><span class="pv" id="pv_edit">לא</span></div>
@@ -248,6 +268,7 @@ footer a{color:var(--navy);text-decoration:none;}
 <script>
 const SIGNING_URL_SELLER = 'https://baruchezon.github.io/bsd-contracts/bsd-contract-signing-seller.html';
 const SIGNING_URL_BUYER  = 'https://baruchezon.github.io/bsd-contracts/bsd-contract-signing-buyer.html';
+const SIGNING_URL_BROKER = 'https://baruchezon.github.io/bsd-contracts/bsd-contract-signing-broker.html';
 
 let currentURL = '';
 let agreementType = 'seller';
@@ -290,6 +311,17 @@ const TYPE_TEXT = {
     commHint: 'יופיע בסעיף שכר הטרחה: 35,000 ₪ או % משווי העסקה – הגבוה מבין השניים',
     previewLabel: 'קונה פוטנציאלי',
     waIntro: 'איזה יופי שאתה בדרך לעסק החדש שלך - אנחנו ב-BSD נשמח ללוות אותך צעד אחר צעד עד לעסקה הנכונה! 😊🤝',
+  },
+  broker: {
+    nameLabel: 'שם המתווך',
+    bizLabel: '',
+    bizPlaceholder: '',
+    payLabel: '',
+    payHint: '',
+    payPlaceholder: '',
+    commHint: '',
+    previewLabel: 'מתווך',
+    waIntro: 'שמחים לשתף איתך פעולה - אנחנו ב-BSD מצרפים אותך כמתווך פעיל שלנו! 😊🤝',
   }
 };
 
@@ -297,16 +329,33 @@ function setType(type) {
   agreementType = type;
   document.getElementById('typeBtnSeller').classList.toggle('active', type==='seller');
   document.getElementById('typeBtnBuyer').classList.toggle('active', type==='buyer');
+  document.getElementById('typeBtnBroker').classList.toggle('active', type==='broker');
   const t = TYPE_TEXT[type];
   document.getElementById('lbl_name').innerHTML = t.nameLabel + ' <span class="req">*</span>';
   document.getElementById('hint_comm').textContent = t.commHint;
   document.getElementById('pv_type').textContent = t.previewLabel;
 
-  const isBuyer = (type === 'buyer');
+  const isBuyer = (type === 'buyer' || type === 'broker');
+  const isBroker = (type === 'broker');
   document.getElementById('wrap_pay').classList.toggle('hidden-field', isBuyer);
   document.getElementById('pvrow_pay').classList.toggle('hidden-field', isBuyer);
   document.getElementById('wrap_biz').classList.toggle('hidden-field', isBuyer);
   document.getElementById('pvrow_biz').classList.toggle('hidden-field', isBuyer);
+
+  // שדות שרלוונטיים רק לקונה/מוכר (שכר הצלחה ומדרגות עמלה) מוסתרים לגמרי עבור מתווך,
+  // שמשתמש במודל עמלות משלו (הפניה/טיפול מלא)
+  document.getElementById('wrap_comm_flat').classList.toggle('hidden-field', isBroker || commissionMode==='tiered');
+  document.getElementById('wrap_comm_tiered').classList.toggle('hidden-field', isBroker || commissionMode==='flat');
+  document.getElementById('pvrow_comm_flat').classList.toggle('hidden-field', isBroker || commissionMode==='tiered');
+  document.getElementById('pvrow_comm_tiered').classList.toggle('hidden-field', isBroker || commissionMode==='flat');
+  document.querySelector('.comm-mode-toggle').closest('.fg').classList.toggle('hidden-field', isBroker);
+  document.getElementById('minFee').closest('.fg').classList.toggle('hidden-field', isBroker);
+
+  document.getElementById('wrap_referralPct').classList.toggle('hidden-field', !isBroker);
+  document.getElementById('wrap_fullPct').classList.toggle('hidden-field', !isBroker);
+  document.getElementById('pvrow_referralPct').classList.toggle('hidden-field', !isBroker);
+  document.getElementById('pvrow_fullPct').classList.toggle('hidden-field', !isBroker);
+
   updatePreview();
 }
 
@@ -398,15 +447,18 @@ document.addEventListener('DOMContentLoaded', () => {
   renderTiers();
   setCommissionMode('flat');
 
-  // מילוי אוטומטי מקישור (בא מה-CRM): ?type=seller|buyer&name=...&phone=...&biz=...
+  // מילוי אוטומטי מקישור (בא מה-CRM): ?type=seller|buyer|broker&name=...&phone=...&biz=...
   const params = new URLSearchParams(window.location.search);
   const qType = params.get('type');
-  if (qType === 'buyer' || qType === 'seller') setType(qType);
+  if (qType === 'buyer' || qType === 'seller' || qType === 'broker') setType(qType);
   if (params.get('name'))  document.getElementById('clientName').value = params.get('name');
   if (params.get('phone')) document.getElementById('clientPhone').value = params.get('phone');
   if (params.get('biz'))   document.getElementById('businessName').value = params.get('biz');
+  if (params.get('brokerId')) document.getElementById('brokerId').value = params.get('brokerId');
+  if (params.get('referralPct')) document.getElementById('referralPct').value = params.get('referralPct') + '%';
+  if (params.get('fullHandlingPct')) document.getElementById('fullHandlingPct').value = params.get('fullHandlingPct') + '%';
 
-  ['clientName','clientPhone','businessName','oneTimePayment','minFee','commissionPct','agreementDate','notes'].forEach(id =>
+  ['clientName','clientPhone','businessName','oneTimePayment','minFee','commissionPct','agreementDate','notes','referralPct','fullHandlingPct'].forEach(id =>
     document.getElementById(id).addEventListener('input', updatePreview));
   document.getElementById('allowNameEdit').addEventListener('change', updatePreview);
   updatePreview();
@@ -432,6 +484,10 @@ function updatePreview() {
   if (commissionMode === 'tiered') {
     document.getElementById('pv_tiers').innerHTML = describeTiers(tiers).map(s=>`<div>• ${s}</div>`).join('');
   }
+  if (agreementType === 'broker') {
+    document.getElementById('pv_referralPct').textContent = numFrom('referralPct')+'%';
+    document.getElementById('pv_fullPct').textContent = numFrom('fullHandlingPct')+'%';
+  }
   if (date) { const [y,m,d]=date.split('-'); document.getElementById('pv_date').textContent=d+'/'+m+'/'+y; }
   else document.getElementById('pv_date').textContent='–';
   if (notes) { document.getElementById('pv_notes').textContent=notes; document.getElementById('pv_notes_row').style.display='flex'; }
@@ -444,7 +500,16 @@ function validate() {
   function chk(id,eid){ const v=document.getElementById(id).value.trim(); const e=document.getElementById(eid); if(!v){document.getElementById(id).classList.add('error');e.classList.add('show');ok=false;}else{document.getElementById(id).classList.remove('error');e.classList.remove('show');} }
   chk('clientName','e_name'); chk('clientPhone','e_phone');
   if (agreementType === 'seller') { chk('businessName','e_biz'); chk('oneTimePayment','e_pay'); }
-  chk('minFee','e_minfee'); chk('agreementDate','e_date');
+  chk('agreementDate','e_date');
+
+  if (agreementType === 'broker') {
+    chk('referralPct','e_referralPct');
+    chk('fullHandlingPct','e_fullPct');
+    document.getElementById('errBanner').classList.toggle('show',!ok);
+    return ok;
+  }
+
+  chk('minFee','e_minfee');
 
   if (commissionMode === 'flat') {
     chk('commissionPct','e_comm');
@@ -474,6 +539,22 @@ function generate() {
   const p = new URLSearchParams();
   p.set('clientName', document.getElementById('clientName').value.trim());
   p.set('clientPhone', document.getElementById('clientPhone').value.trim());
+
+  if (agreementType === 'broker') {
+    const brokerId = document.getElementById('brokerId').value.trim();
+    if (brokerId) p.set('brokerId', brokerId);
+    p.set('referralPct', numFrom('referralPct'));
+    p.set('fullHandlingPct', numFrom('fullHandlingPct'));
+    p.set('agreementDate', document.getElementById('agreementDate').value);
+    const notesB = document.getElementById('notes').value.trim();
+    if (notesB) p.set('notes', notesB);
+    currentURL = SIGNING_URL_BROKER + '?' + p.toString();
+    document.getElementById('linkBox').textContent = currentURL;
+    document.getElementById('linkOut').classList.add('show');
+    document.getElementById('linkOut').scrollIntoView({behavior:'smooth',block:'start'});
+    return;
+  }
+
   if (agreementType === 'seller') {
     p.set('businessName', document.getElementById('businessName').value.trim());
     p.set('oneTimePayment', numFrom('oneTimePayment'));
@@ -514,21 +595,45 @@ function openLink() { window.open(currentURL,'_blank'); }
 
 function sendWA() {
   const name  = document.getElementById('clientName').value.trim();
-  const biz   = document.getElementById('businessName').value.trim();
   const phone = document.getElementById('clientPhone').value.trim();
+  const dateR = document.getElementById('agreementDate').value;
+  let dateFmt = dateR;
+  if (dateR) { const [y,m,d]=dateR.split('-'); dateFmt=d+'/'+m+'/'+y; }
+  let cleaned = phone.replace(/[\s\-\(\)]/g,'');
+  if (cleaned.startsWith('0')) cleaned = '972' + cleaned.slice(1);
+  const t = TYPE_TEXT[agreementType];
+
+  if (agreementType === 'broker') {
+    const refPct = numFrom('referralPct');
+    const fullPct = numFrom('fullHandlingPct');
+    const msgBroker =
+`שלום ${name},
+
+${t.waIntro}
+
+📋 *פרטי ההסכם:*
+• אחוז עמלת הפניה: ${refPct}%
+• אחוז עמלת טיפול מלא בעסקה: ${fullPct}%
+• תאריך: ${dateFmt}
+
+לחץ על הקישור הבא, קרא את ההסכם, מלא את פרטיך וחתום:
+
+${currentURL}
+
+לשאלות אני כאן,
+ברוך איזון | BSD Business Brokers Israel 🤝
+📱 bsd-bbi.co.il`;
+    window.open('https://wa.me/'+cleaned+'?text='+encodeURIComponent(msgBroker),'_blank');
+    return;
+  }
+
+  const biz   = document.getElementById('businessName').value.trim();
   const pay   = numFrom('oneTimePayment').toLocaleString('he-IL');
   const minFee = numFrom('minFee').toLocaleString('he-IL');
   const commText = commissionMode === 'tiered'
     ? describeTiers(tiers).join(' + ')
     : numFrom('commissionPct') + '%';
-  const dateR = document.getElementById('agreementDate').value;
-  let dateFmt = dateR;
-  if (dateR) { const [y,m,d]=dateR.split('-'); dateFmt=d+'/'+m+'/'+y; }
 
-  let cleaned = phone.replace(/[\s\-\(\)]/g,'');
-  if (cleaned.startsWith('0')) cleaned = '972' + cleaned.slice(1);
-
-  const t = TYPE_TEXT[agreementType];
   const bizLine = agreementType === 'seller' ? `• שם העסק: ${biz}\n` : '';
   const payLine = agreementType === 'seller' ? `• דמי פתיחת תיק: ${pay} ₪ (לא כולל מע"מ)\n` : '';
 
@@ -561,6 +666,9 @@ function resetForm() {
   document.getElementById('oneTimePayment').value = '4,000 ₪';
   document.getElementById('minFee').value = '35,000 ₪';
   document.getElementById('commissionPct').value = '5%';
+  document.getElementById('brokerId').value = '';
+  document.getElementById('referralPct').value = '20%';
+  document.getElementById('fullHandlingPct').value = '50%';
   tiers = defaultTiers();
   setCommissionMode('flat');
   renderTiers();
@@ -568,7 +676,7 @@ function resetForm() {
   document.getElementById('allowNameEdit').checked = false;
   document.getElementById('linkOut').classList.remove('show');
   document.getElementById('errBanner').classList.remove('show');
-  ['e_name','e_phone','e_biz','e_pay','e_minfee','e_comm','e_date'].forEach(id=>document.getElementById(id).classList.remove('show'));
+  ['e_name','e_phone','e_biz','e_pay','e_minfee','e_comm','e_date','e_referralPct','e_fullPct'].forEach(id=>document.getElementById(id).classList.remove('show'));
   currentURL=''; updatePreview();
   window.scrollTo({top:0,behavior:'smooth'});
 }
