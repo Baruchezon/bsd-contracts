@@ -185,19 +185,21 @@ footer a{color:var(--navy);text-decoration:none;}
         <div class="field-error" id="e_tiers">יש להזין אחוזים וסכומים תקינים ועולים לכל המדרגות</div>
       </div>
 
-      <div class="fg hidden-field" id="wrap_referralPct">
-        <label>אחוז עמלת הפניה <span class="req">*</span></label>
-        <input type="text" id="referralPct" value="20%" inputmode="decimal" dir="ltr" style="text-align:right">
-        <div class="hint">ברירת המחדל נטענת מהגדרות האדמין; ניתן לשנות פרטנית למתווך זה בלבד</div>
-        <div class="field-error" id="e_referralPct">שדה חובה</div>
+      <div class="fg full hidden-field" id="wrap_commissionType">
+        <label>סוג ההתקשרות עם המתווך <span class="req">*</span></label>
+        <div class="comm-mode-toggle">
+          <button type="button" class="comm-mode-btn active" id="commTypeBtnReferral" onclick="setCommissionType('הפניה')">הפניה (ברירת מחדל 20%)</button>
+          <button type="button" class="comm-mode-btn" id="commTypeBtnFull" onclick="setCommissionType('טיפול מלא')">טיפול מלא (ברירת מחדל 50%)</button>
+        </div>
+        <div class="hint">מה שנבחר ונחתם כאן הוא מה שהמתווך מקבל בפועל — יש לבחור סוג אחד</div>
       </div>
       <input type="hidden" id="brokerId" value="">
 
-      <div class="fg hidden-field" id="wrap_fullPct">
-        <label>אחוז עמלת טיפול מלא <span class="req">*</span></label>
-        <input type="text" id="fullHandlingPct" value="50%" inputmode="decimal" dir="ltr" style="text-align:right">
+      <div class="fg hidden-field" id="wrap_pct">
+        <label id="lbl_pct">אחוז עמלת הפניה <span class="req">*</span></label>
+        <input type="text" id="commissionPct2" value="20%" inputmode="decimal" dir="ltr" style="text-align:right">
         <div class="hint">ברירת המחדל נטענת מהגדרות האדמין; ניתן לשנות פרטנית למתווך זה בלבד</div>
-        <div class="field-error" id="e_fullPct">שדה חובה</div>
+        <div class="field-error" id="e_pct2">שדה חובה</div>
       </div>
 
       <div class="fg">
@@ -233,8 +235,8 @@ footer a{color:var(--navy);text-decoration:none;}
       <div class="preview-row"><span class="pl">מינימום שכר הצלחה:</span><span class="pv" id="pv_minfee">–</span></div>
       <div class="preview-row" id="pvrow_comm_flat"><span class="pl">אחוז עמלה:</span><span class="pv" id="pv_comm">–</span></div>
       <div class="preview-row hidden-field" id="pvrow_comm_tiered" style="flex-direction:column;"><span class="pl">מדרגות עמלה:</span><div class="preview-tiers pv" id="pv_tiers"></div></div>
-      <div class="preview-row hidden-field" id="pvrow_referralPct"><span class="pl">אחוז הפניה:</span><span class="pv" id="pv_referralPct">–</span></div>
-      <div class="preview-row hidden-field" id="pvrow_fullPct"><span class="pl">אחוז טיפול מלא:</span><span class="pv" id="pv_fullPct">–</span></div>
+      <div class="preview-row hidden-field" id="pvrow_commType"><span class="pl">סוג התקשרות:</span><span class="pv" id="pv_commType">–</span></div>
+      <div class="preview-row hidden-field" id="pvrow_pct2"><span class="pl">אחוז עמלה:</span><span class="pv" id="pv_pct2">–</span></div>
       <div class="preview-row"><span class="pl">תאריך ההסכם:</span><span class="pv" id="pv_date">–</span></div>
       <div class="preview-row" id="pv_notes_row" style="display:none"><span class="pl">הערות:</span><span class="pv" id="pv_notes">–</span></div>
       <div class="preview-row"><span class="pl">שם ניתן לעריכה:</span><span class="pv" id="pv_edit">לא</span></div>
@@ -343,19 +345,30 @@ function setType(type) {
   document.getElementById('pvrow_biz').classList.toggle('hidden-field', isBuyer);
 
   // שדות שרלוונטיים רק לקונה/מוכר (שכר הצלחה ומדרגות עמלה) מוסתרים לגמרי עבור מתווך,
-  // שמשתמש במודל עמלות משלו (הפניה/טיפול מלא)
+  // שמשתמש במודל עמלה משלו (בחירה בין הפניה לטיפול מלא, לא שניהם יחד)
   document.getElementById('wrap_comm_flat').classList.toggle('hidden-field', isBroker || commissionMode==='tiered');
   document.getElementById('wrap_comm_tiered').classList.toggle('hidden-field', isBroker || commissionMode==='flat');
   document.getElementById('pvrow_comm_flat').classList.toggle('hidden-field', isBroker || commissionMode==='tiered');
   document.getElementById('pvrow_comm_tiered').classList.toggle('hidden-field', isBroker || commissionMode==='flat');
-  document.querySelector('.comm-mode-toggle').closest('.fg').classList.toggle('hidden-field', isBroker);
+  document.getElementById('commModeBtnFlat').closest('.fg').classList.toggle('hidden-field', isBroker);
   document.getElementById('minFee').closest('.fg').classList.toggle('hidden-field', isBroker);
 
-  document.getElementById('wrap_referralPct').classList.toggle('hidden-field', !isBroker);
-  document.getElementById('wrap_fullPct').classList.toggle('hidden-field', !isBroker);
-  document.getElementById('pvrow_referralPct').classList.toggle('hidden-field', !isBroker);
-  document.getElementById('pvrow_fullPct').classList.toggle('hidden-field', !isBroker);
+  document.getElementById('wrap_commissionType').classList.toggle('hidden-field', !isBroker);
+  document.getElementById('wrap_pct').classList.toggle('hidden-field', !isBroker);
+  document.getElementById('pvrow_commType').classList.toggle('hidden-field', !isBroker);
+  document.getElementById('pvrow_pct2').classList.toggle('hidden-field', !isBroker);
 
+  updatePreview();
+}
+
+/* ─────────── בחירת סוג התקשרות מתווך (הפניה / טיפול מלא) - בלעדי, לא שניהם יחד ─────────── */
+let brokerCommissionType = 'הפניה';
+function setCommissionType(type) {
+  brokerCommissionType = type;
+  document.getElementById('commTypeBtnReferral').classList.toggle('active', type==='הפניה');
+  document.getElementById('commTypeBtnFull').classList.toggle('active', type==='טיפול מלא');
+  document.getElementById('lbl_pct').innerHTML = (type==='הפניה' ? 'אחוז עמלת הפניה' : 'אחוז עמלת טיפול מלא') + ' <span class="req">*</span>';
+  document.getElementById('commissionPct2').value = (type==='הפניה' ? '20%' : '50%');
   updatePreview();
 }
 
@@ -455,10 +468,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (params.get('phone')) document.getElementById('clientPhone').value = params.get('phone');
   if (params.get('biz'))   document.getElementById('businessName').value = params.get('biz');
   if (params.get('brokerId')) document.getElementById('brokerId').value = params.get('brokerId');
-  if (params.get('referralPct')) document.getElementById('referralPct').value = params.get('referralPct') + '%';
-  if (params.get('fullHandlingPct')) document.getElementById('fullHandlingPct').value = params.get('fullHandlingPct') + '%';
+  if (params.get('commissionType') === 'טיפול מלא') setCommissionType('טיפול מלא');
+  const prefillPct = params.get('pct') || params.get('referralPct') || params.get('fullHandlingPct');
+  if (prefillPct) document.getElementById('commissionPct2').value = prefillPct + '%';
 
-  ['clientName','clientPhone','businessName','oneTimePayment','minFee','commissionPct','agreementDate','notes','referralPct','fullHandlingPct'].forEach(id =>
+  ['clientName','clientPhone','businessName','oneTimePayment','minFee','commissionPct','agreementDate','notes','commissionPct2'].forEach(id =>
     document.getElementById(id).addEventListener('input', updatePreview));
   document.getElementById('allowNameEdit').addEventListener('change', updatePreview);
   updatePreview();
@@ -485,8 +499,8 @@ function updatePreview() {
     document.getElementById('pv_tiers').innerHTML = describeTiers(tiers).map(s=>`<div>• ${s}</div>`).join('');
   }
   if (agreementType === 'broker') {
-    document.getElementById('pv_referralPct').textContent = numFrom('referralPct')+'%';
-    document.getElementById('pv_fullPct').textContent = numFrom('fullHandlingPct')+'%';
+    document.getElementById('pv_commType').textContent = brokerCommissionType;
+    document.getElementById('pv_pct2').textContent = numFrom('commissionPct2')+'%';
   }
   if (date) { const [y,m,d]=date.split('-'); document.getElementById('pv_date').textContent=d+'/'+m+'/'+y; }
   else document.getElementById('pv_date').textContent='–';
@@ -503,8 +517,7 @@ function validate() {
   chk('agreementDate','e_date');
 
   if (agreementType === 'broker') {
-    chk('referralPct','e_referralPct');
-    chk('fullHandlingPct','e_fullPct');
+    chk('commissionPct2','e_pct2');
     document.getElementById('errBanner').classList.toggle('show',!ok);
     return ok;
   }
@@ -543,8 +556,8 @@ function generate() {
   if (agreementType === 'broker') {
     const brokerId = document.getElementById('brokerId').value.trim();
     if (brokerId) p.set('brokerId', brokerId);
-    p.set('referralPct', numFrom('referralPct'));
-    p.set('fullHandlingPct', numFrom('fullHandlingPct'));
+    p.set('commissionType', brokerCommissionType);
+    p.set('pct', numFrom('commissionPct2'));
     p.set('agreementDate', document.getElementById('agreementDate').value);
     const notesB = document.getElementById('notes').value.trim();
     if (notesB) p.set('notes', notesB);
@@ -604,16 +617,15 @@ function sendWA() {
   const t = TYPE_TEXT[agreementType];
 
   if (agreementType === 'broker') {
-    const refPct = numFrom('referralPct');
-    const fullPct = numFrom('fullHandlingPct');
+    const pct2 = numFrom('commissionPct2');
     const msgBroker =
 `שלום ${name},
 
 ${t.waIntro}
 
 📋 *פרטי ההסכם:*
-• אחוז עמלת הפניה: ${refPct}%
-• אחוז עמלת טיפול מלא בעסקה: ${fullPct}%
+• סוג התקשרות: ${brokerCommissionType}
+• אחוז עמלה: ${pct2}%
 • תאריך: ${dateFmt}
 
 לחץ על הקישור הבא, קרא את ההסכם, מלא את פרטיך וחתום:
@@ -667,8 +679,7 @@ function resetForm() {
   document.getElementById('minFee').value = '35,000 ₪';
   document.getElementById('commissionPct').value = '5%';
   document.getElementById('brokerId').value = '';
-  document.getElementById('referralPct').value = '20%';
-  document.getElementById('fullHandlingPct').value = '50%';
+  setCommissionType('הפניה');
   tiers = defaultTiers();
   setCommissionMode('flat');
   renderTiers();
@@ -676,7 +687,7 @@ function resetForm() {
   document.getElementById('allowNameEdit').checked = false;
   document.getElementById('linkOut').classList.remove('show');
   document.getElementById('errBanner').classList.remove('show');
-  ['e_name','e_phone','e_biz','e_pay','e_minfee','e_comm','e_date','e_referralPct','e_fullPct'].forEach(id=>document.getElementById(id).classList.remove('show'));
+  ['e_name','e_phone','e_biz','e_pay','e_minfee','e_comm','e_date','e_pct2'].forEach(id=>document.getElementById(id).classList.remove('show'));
   currentURL=''; updatePreview();
   window.scrollTo({top:0,behavior:'smooth'});
 }
