@@ -320,7 +320,7 @@ footer a{color:var(--navy);text-decoration:none;}
       </tr>
       <tr id="pr_notesRow" style="background:#F4F5F7;display:none;">
         <td style="padding:8px 12px;font-weight:600;">הערות:</td>
-        <td style="padding:8px 12px;" colspan="3" id="pr_notes"></td>
+        <td style="padding:8px 12px;white-space:pre-wrap;" colspan="3" id="pr_notes"></td>
       </tr>
     </table>
 
@@ -417,6 +417,60 @@ function applyPercents(p) {
   }
 }
 
+let agreementNotesReady = Promise.resolve();
+const bsdNotesClient = window.supabase ? window.supabase.createClient(
+  'https://zcdlegcvfirwzitfxjcs.supabase.co',
+  'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN'
+) : null;
+
+function showAgreementNotes(text) {
+  const el = document.getElementById('ct_notes');
+  const section = document.getElementById('notesSection');
+  if (!el || !section || text == null || !String(text).trim()) return;
+  el.textContent = String(text);
+  el.style.whiteSpace = 'pre-wrap';
+  section.style.display = 'block';
+}
+
+async function loadAgreementNotes(params) {
+  const notesId = (params.get('notesId') || '').trim();
+  if (notesId) {
+    if (!bsdNotesClient) {
+      showAgreementNotes('לא ניתן לטעון את ההערות המיוחדות. רעננו את הדף.');
+      return;
+    }
+    try {
+      const { data, error } = await bsdNotesClient.rpc('get_agreement_link_notes', { p_id: notesId });
+      if (error) throw error;
+      const text = data == null ? '' : String(data);
+      if (text.trim()) {
+        showAgreementNotes(text);
+        return;
+      }
+      showAgreementNotes('ההערות המיוחדות לא נמצאו או שפג תוקפן. בקשו קישור מעודכן מ-BSD.');
+    } catch (err) {
+      console.error('[agreement-notes] load failed', err);
+      showAgreementNotes('טעינת ההערות המיוחדות נכשלה. רעננו את הדף או בקשו קישור חדש.');
+    }
+    return;
+  }
+  const legacy = params.get('notes');
+  if (legacy && legacy.trim()) showAgreementNotes(legacy);
+}
+
+function stampPrintNotes() {
+  const live = document.getElementById('ct_notes');
+  const text = live ? live.textContent : '';
+  if (!text || !String(text).trim()) return;
+  const cloneNotes = document.querySelector('#printArea #ct_notes');
+  const cloneSection = document.querySelector('#printArea #notesSection');
+  if (cloneNotes) {
+    cloneNotes.textContent = text;
+    cloneNotes.style.whiteSpace = 'pre-wrap';
+  }
+  if (cloneSection) cloneSection.style.display = 'block';
+}
+
 /* ─────────── INIT ─────────── */
 document.addEventListener('DOMContentLoaded', () => {
   const now = new Date();
@@ -475,10 +529,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   applyPercents(p);
   if (p.get('brokerId')) { hasParams = true; }
-  if (p.get('notes') && p.get('notes').trim()) {
-    document.getElementById('ct_notes').textContent = p.get('notes');
-    document.getElementById('notesSection').style.display = 'block';
-  }
+  if (p.get('notesId') || (p.get('notes') && p.get('notes').trim())) hasParams = true;
+  agreementNotesReady = loadAgreementNotes(p);
   if (hasParams) document.getElementById('prefillBanner').classList.add('show');
 
   initSigPad();
@@ -587,7 +639,8 @@ function validate() {
 }
 
 /* ─────────── SUBMIT ─────────── */
-function submitForm() {
+async function submitForm() {
+  try { await agreementNotesReady; } catch (e) {}
   if (!validate()) {
     const firstErr = document.querySelector('.fg input.error, .sig-err');
     if (firstErr) firstErr.scrollIntoView({behavior:'smooth',block:'center'});
@@ -730,6 +783,7 @@ function preparePrintArea(name,id_n,entity,phone,email,addr,dt,cid,minFee,comm,s
   // העתק את תוכן ההסכם
   const contractHTML = document.getElementById('contractBox').innerHTML;
   document.getElementById('pr_contractContent').innerHTML = contractHTML;
+  stampPrintNotes();
 
   // הוסף הערות הלקוח להדפסה, אם קיימות
   const prNotesRow = document.getElementById('pr_notesRow');
