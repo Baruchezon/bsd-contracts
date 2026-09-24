@@ -474,7 +474,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (prefillPct) document.getElementById('commissionPct2').value = prefillPct + '%';
 
   ['clientName','clientPhone','businessName','oneTimePayment','minFee','commissionPct','agreementDate','notes','commissionPct2'].forEach(id =>
-    document.getElementById(id).addEventListener('input', updatePreview));
+    document.getElementById(id).addEventListener('input', () => {
+      updatePreview();
+      if (id === 'notes') syncGeneratedNotesToLink();
+    }));
   document.getElementById('allowNameEdit').addEventListener('change', updatePreview);
   updatePreview();
 });
@@ -583,9 +586,7 @@ async function generate() {
     p.set('commissionType', brokerCommissionType);
     p.set('pct', pct);
     p.set('agreementDate', document.getElementById('agreementDate').value);
-    const notesB = document.getElementById('notes').value.trim();
-    if (notesB) p.set('notes', notesB);
-    currentURL = SIGNING_URL_BROKER + '?' + p.toString();
+    currentURL = signingUrlWithNotes(SIGNING_URL_BROKER, p);
     document.getElementById('linkBox').textContent = currentURL;
     document.getElementById('linkOut').classList.add('show');
     document.getElementById('linkOut').scrollIntoView({behavior:'smooth',block:'start'});
@@ -609,16 +610,15 @@ async function generate() {
   }
   p.set('agreementDate', document.getElementById('agreementDate').value);
   p.set('allowNameEdit', document.getElementById('allowNameEdit').checked ? '1' : '0');
-  const notes = document.getElementById('notes').value.trim();
-  if (notes) p.set('notes', notes);
   const baseURL = agreementType === 'seller' ? SIGNING_URL_SELLER : SIGNING_URL_BUYER;
-  currentURL = baseURL + '?' + p.toString();
+  currentURL = signingUrlWithNotes(baseURL, p);
   document.getElementById('linkBox').textContent = currentURL;
   document.getElementById('linkOut').classList.add('show');
   document.getElementById('linkOut').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function copyLink() {
+  syncGeneratedNotesToLink();
   navigator.clipboard.writeText(currentURL).then(()=>{
     const ok=document.getElementById('copyOk'); ok.classList.add('show'); setTimeout(()=>ok.classList.remove('show'),2500);
   }).catch(()=>{
@@ -628,9 +628,55 @@ function copyLink() {
   });
 }
 
-function openLink() { window.open(currentURL,'_blank'); }
+// Identity params stay ahead of bulky commission JSON so a truncated
+// WhatsApp/URL still contains a complete, Hebrew-safe notes value.
+const SIGNING_NOTES_IDENTITY_KEYS = new Set([
+  'type', 'clientName', 'name', 'clientPhone', 'phone', 'businessName', 'biz', 'recordId'
+]);
+
+function paramsWithNotesEarly(params, notes) {
+  const entries = [];
+  for (const [key, value] of params.entries()) {
+    if (key !== 'notes') entries.push([key, value]);
+  }
+  let insertAt = 0;
+  for (let i = 0; i < entries.length; i++) {
+    if (SIGNING_NOTES_IDENTITY_KEYS.has(entries[i][0])) insertAt = i + 1;
+  }
+  const text = String(notes == null ? '' : notes).trim();
+  if (text) entries.splice(insertAt, 0, ['notes', text]);
+  const next = new URLSearchParams();
+  for (const [key, value] of entries) next.append(key, value);
+  return next;
+}
+
+function signingUrlWithNotes(baseURL, params) {
+  const notes = document.getElementById('notes').value.trim();
+  return baseURL + '?' + paramsWithNotesEarly(params, notes).toString();
+}
+
+function syncGeneratedNotesToLink() {
+  if (!currentURL) return;
+  try {
+    const url = new URL(currentURL);
+    const notes = document.getElementById('notes').value.trim();
+    const next = paramsWithNotesEarly(url.searchParams, notes);
+    const query = next.toString();
+    currentURL = url.origin + url.pathname + (query ? '?' + query : '') + url.hash;
+    const linkBox = document.getElementById('linkBox');
+    if (linkBox) linkBox.textContent = currentURL;
+  } catch (err) {
+    console.error('[agreement-notes] failed to sync notes into generated link', err);
+  }
+}
+
+function openLink() {
+  syncGeneratedNotesToLink();
+  window.open(currentURL,'_blank');
+}
 
 function sendWA() {
+  syncGeneratedNotesToLink();
   const name  = document.getElementById('clientName').value.trim();
   const phone = document.getElementById('clientPhone').value.trim();
   const dateR = document.getElementById('agreementDate').value;
