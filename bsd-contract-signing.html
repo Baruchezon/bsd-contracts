@@ -6,6 +6,7 @@
 <title>הסכם התקשרות – BSD Business Brokers Israel</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
   --navy:#1B2A4A; --navy2:#243561; --gold:#B89630; --gold2:#D4AF37;
@@ -414,6 +415,60 @@ footer a{color:var(--navy);text-decoration:none;}
 /* ─────────── GLOBALS ─────────── */
 let hasSigned = false, sigDataUrl = null, confirmTime = null;
 
+let agreementNotesReady = Promise.resolve();
+const bsdNotesClient = window.supabase ? window.supabase.createClient(
+  'https://zcdlegcvfirwzitfxjcs.supabase.co',
+  'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN'
+) : null;
+
+function showAgreementNotes(text) {
+  const el = document.getElementById('ct_notes');
+  const section = document.getElementById('notesSection');
+  if (!el || !section || text == null || !String(text).trim()) return;
+  el.textContent = String(text);
+  el.style.whiteSpace = 'pre-wrap';
+  section.style.display = 'block';
+}
+
+async function loadAgreementNotes(params) {
+  const notesId = (params.get('notesId') || '').trim();
+  if (notesId) {
+    if (!bsdNotesClient) {
+      showAgreementNotes('לא ניתן לטעון את ההערות המיוחדות. רעננו את הדף.');
+      return;
+    }
+    try {
+      const { data, error } = await bsdNotesClient.rpc('get_agreement_link_notes', { p_id: notesId });
+      if (error) throw error;
+      const text = data == null ? '' : String(data);
+      if (text.trim()) {
+        showAgreementNotes(text);
+        return;
+      }
+      showAgreementNotes('ההערות המיוחדות לא נמצאו או שפג תוקפן. בקשו קישור מעודכן מ-BSD.');
+    } catch (err) {
+      console.error('[agreement-notes] load failed', err);
+      showAgreementNotes('טעינת ההערות המיוחדות נכשלה. רעננו את הדף או בקשו קישור חדש.');
+    }
+    return;
+  }
+  const legacy = params.get('notes');
+  if (legacy && legacy.trim()) showAgreementNotes(legacy);
+}
+
+function stampPrintNotes() {
+  const live = document.getElementById('ct_notes');
+  const text = live ? live.textContent : '';
+  if (!text || !String(text).trim()) return;
+  const cloneNotes = document.querySelector('#printArea #ct_notes');
+  const cloneSection = document.querySelector('#printArea #notesSection');
+  if (cloneNotes) {
+    cloneNotes.textContent = text;
+    cloneNotes.style.whiteSpace = 'pre-wrap';
+  }
+  if (cloneSection) cloneSection.style.display = 'block';
+}
+
 /* ─────────── INIT ─────────── */
 document.addEventListener('DOMContentLoaded', () => {
   const now = new Date();
@@ -473,10 +528,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (p.get('commissionPercentage')) {
     document.getElementById('ct_commission').textContent = p.get('commissionPercentage');
   }
-  if (p.get('notes') && p.get('notes').trim()) {
-    document.getElementById('ct_notes').textContent = p.get('notes');
-    document.getElementById('notesSection').style.display = 'block';
-  }
+  if (p.get('notesId') || (p.get('notes') && p.get('notes').trim())) hasParams = true;
+  agreementNotesReady = loadAgreementNotes(p);
   if (hasParams) document.getElementById('prefillBanner').classList.add('show');
 
   initSigPad();
@@ -581,7 +634,8 @@ function validate() {
 }
 
 /* ─────────── SUBMIT ─────────── */
-function submitForm() {
+async function submitForm() {
+  try { await agreementNotesReady; } catch (e) {}
   if (!validate()) {
     const firstErr = document.querySelector('.fg input.error, .sig-err');
     if (firstErr) firstErr.scrollIntoView({behavior:'smooth',block:'center'});
@@ -672,6 +726,7 @@ function preparePrintArea(name,biz,id_n,entity,phone,email,addr,dt,cid,ot,comm,s
   // העתק את תוכן ההסכם
   const contractHTML = document.getElementById('contractBox').innerHTML;
   document.getElementById('pr_contractContent').innerHTML = contractHTML;
+  stampPrintNotes();
 
   // הכנס לוגו
   const logoSrc = document.querySelector('.logo-img').src;

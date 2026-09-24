@@ -275,6 +275,12 @@ const SIGNING_URL_BROKER = 'https://baruchezon.github.io/bsd-contracts/bsd-contr
 
 let currentURL = '';
 let agreementType = 'seller';
+let linkRecordId = null;
+let savedNotesText = '';
+let savedNotesId = null;
+let notesSyncChain = Promise.resolve(true);
+let generatingLink = false;
+let notesInputTimer = null;
 
 function numFrom(id) {
   const raw = document.getElementById(id).value || '';
@@ -469,6 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (params.get('phone')) document.getElementById('clientPhone').value = params.get('phone');
   if (params.get('biz'))   document.getElementById('businessName').value = params.get('biz');
   if (params.get('brokerId')) document.getElementById('brokerId').value = params.get('brokerId');
+  linkRecordId = normalizeUuid(params.get('recordId'));
   if (params.get('commissionType') === 'טיפול מלא') setCommissionType('טיפול מלא');
   const prefillPct = params.get('pct') || params.get('referralPct') || params.get('fullHandlingPct');
   if (prefillPct) document.getElementById('commissionPct2').value = prefillPct + '%';
@@ -476,7 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
   ['clientName','clientPhone','businessName','oneTimePayment','minFee','commissionPct','agreementDate','notes','commissionPct2'].forEach(id =>
     document.getElementById(id).addEventListener('input', () => {
       updatePreview();
-      if (id === 'notes') syncGeneratedNotesToLink();
+      if (id === 'notes') scheduleNotesSync();
     }));
   document.getElementById('allowNameEdit').addEventListener('change', updatePreview);
   updatePreview();
@@ -508,13 +515,19 @@ function updatePreview() {
   }
   if (date) { const [y,m,d]=date.split('-'); document.getElementById('pv_date').textContent=d+'/'+m+'/'+y; }
   else document.getElementById('pv_date').textContent='–';
-  if (notes) { document.getElementById('pv_notes').textContent=notes; document.getElementById('pv_notes_row').style.display='flex'; }
+  if (notes) {
+    const pvNotes = document.getElementById('pv_notes');
+    pvNotes.textContent = notes;
+    pvNotes.style.whiteSpace = 'pre-wrap';
+    document.getElementById('pv_notes_row').style.display='flex';
+  }
   else document.getElementById('pv_notes_row').style.display='none';
   document.getElementById('pv_edit').textContent = edit ? 'כן – יוכל לתקן' : 'לא – נעול';
 }
 
 function validate() {
   let ok=true;
+  document.getElementById('errBanner').textContent = 'יש למלא את כל שדות החובה';
   function chk(id,eid){ const v=document.getElementById(id).value.trim(); const e=document.getElementById(eid); if(!v){document.getElementById(id).classList.add('error');e.classList.add('show');ok=false;}else{document.getElementById(id).classList.remove('error');e.classList.remove('show');} }
   chk('clientName','e_name'); chk('clientPhone','e_phone');
   if (agreementType === 'seller') { chk('businessName','e_biz'); chk('oneTimePayment','e_pay'); }
@@ -556,127 +569,214 @@ const bsdSupabase = window.supabase ? window.supabase.createClient(
   'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN'
 ) : null;
 
-async function generate() {
-  if (!validate()) return;
-  const p = new URLSearchParams();
-  p.set('clientName', document.getElementById('clientName').value.trim());
-  p.set('clientPhone', document.getElementById('clientPhone').value.trim());
-
-  if (agreementType === 'broker') {
-    const brokerId = document.getElementById('brokerId').value.trim();
-    const pct = numFrom('commissionPct2');
-    if (brokerId) {
-      p.set('brokerId', brokerId);
-      const genBtn = document.querySelector('.btn-generate');
-      genBtn.disabled = true; genBtn.textContent = '⏳ שומר ויוצר קישור...';
-      try {
-        const { error } = await bsdSupabase.rpc('set_broker_commission', {
-          p_broker_id: brokerId, p_commission_type: brokerCommissionType, p_pct: pct
-        });
-        if (error) {
-          document.getElementById('errBanner').textContent = 'שמירת אחוז העמלה נכשלה: ' + error.message + ' (הקישור לא נוצר)';
-          document.getElementById('errBanner').classList.add('show');
-          genBtn.disabled = false; genBtn.textContent = '🔗 יצירת קישור להסכם';
-          return;
-        }
-      } finally {
-        genBtn.disabled = false; genBtn.textContent = '🔗 יצירת קישור להסכם';
-      }
-    }
-    p.set('commissionType', brokerCommissionType);
-    p.set('pct', pct);
-    p.set('agreementDate', document.getElementById('agreementDate').value);
-    currentURL = signingUrlWithNotes(SIGNING_URL_BROKER, p);
-    document.getElementById('linkBox').textContent = currentURL;
-    document.getElementById('linkOut').classList.add('show');
-    document.getElementById('linkOut').scrollIntoView({behavior:'smooth',block:'start'});
-    return;
-  }
-
-  if (agreementType === 'seller') {
-    p.set('businessName', document.getElementById('businessName').value.trim());
-    p.set('oneTimePayment', numFrom('oneTimePayment'));
-  }
-  p.set('minFee', numFrom('minFee'));
-  p.set('commissionMode', commissionMode);
-  if (commissionMode === 'flat') {
-    p.set('commissionPercentage', numFrom('commissionPct'));
-  } else {
-    const cleanTiers = tiers.map((t,i) => ({
-      pct: Number(t.pct),
-      upTo: (i === tiers.length-1) ? null : Number(t.upTo)
-    }));
-    p.set('commissionTiers', JSON.stringify(cleanTiers));
-  }
-  p.set('agreementDate', document.getElementById('agreementDate').value);
-  p.set('allowNameEdit', document.getElementById('allowNameEdit').checked ? '1' : '0');
-  const baseURL = agreementType === 'seller' ? SIGNING_URL_SELLER : SIGNING_URL_BUYER;
-  currentURL = signingUrlWithNotes(baseURL, p);
-  document.getElementById('linkBox').textContent = currentURL;
-  document.getElementById('linkOut').classList.add('show');
-  document.getElementById('linkOut').scrollIntoView({behavior:'smooth',block:'start'});
-}
-
-function copyLink() {
-  syncGeneratedNotesToLink();
-  navigator.clipboard.writeText(currentURL).then(()=>{
-    const ok=document.getElementById('copyOk'); ok.classList.add('show'); setTimeout(()=>ok.classList.remove('show'),2500);
-  }).catch(()=>{
-    const ta=document.createElement('textarea'); ta.value=currentURL; ta.style.cssText='position:fixed;opacity:0;';
-    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
-    const ok=document.getElementById('copyOk'); ok.classList.add('show'); setTimeout(()=>ok.classList.remove('show'),2500);
-  });
-}
-
-// Identity params stay ahead of bulky commission JSON so a truncated
-// WhatsApp/URL still contains a complete, Hebrew-safe notes value.
+const NOTES_SAVE_ERROR = 'שמירת ההערות המיוחדות נכשלה. הקישור לא נוצר ולא נשלח, כדי שהטקסט לא ייחתך בוואטסאפ. נסו שוב.';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SIGNING_NOTES_IDENTITY_KEYS = new Set([
-  'type', 'clientName', 'name', 'clientPhone', 'phone', 'businessName', 'biz', 'recordId'
+  'type', 'clientName', 'name', 'clientPhone', 'phone', 'businessName', 'biz', 'recordId', 'brokerId'
 ]);
 
-function paramsWithNotesEarly(params, notes) {
+function normalizeUuid(value) {
+  const s = String(value || '').trim();
+  return UUID_RE.test(s) ? s : null;
+}
+
+function recordTableForType(type) {
+  if (type === 'buyer') return 'leads';
+  if (type === 'broker') return 'brokers';
+  return 'businesses';
+}
+
+function currentRecordId() {
+  if (agreementType === 'broker') {
+    const fromBroker = normalizeUuid(document.getElementById('brokerId').value);
+    if (fromBroker) return fromBroker;
+  }
+  return linkRecordId;
+}
+
+function showPrepError(message) {
+  const banner = document.getElementById('errBanner');
+  banner.textContent = message;
+  banner.classList.add('show');
+}
+
+function paramsWithNotesId(params, notesId) {
   const entries = [];
   for (const [key, value] of params.entries()) {
-    if (key !== 'notes') entries.push([key, value]);
+    if (key !== 'notes' && key !== 'notesId') entries.push([key, value]);
   }
   let insertAt = 0;
   for (let i = 0; i < entries.length; i++) {
     if (SIGNING_NOTES_IDENTITY_KEYS.has(entries[i][0])) insertAt = i + 1;
   }
-  const text = String(notes == null ? '' : notes).trim();
-  if (text) entries.splice(insertAt, 0, ['notes', text]);
+  if (notesId) entries.splice(insertAt, 0, ['notesId', notesId]);
   const next = new URLSearchParams();
   for (const [key, value] of entries) next.append(key, value);
   return next;
 }
 
-function signingUrlWithNotes(baseURL, params) {
-  const notes = document.getElementById('notes').value.trim();
-  return baseURL + '?' + paramsWithNotesEarly(params, notes).toString();
+function publishSigningUrl(baseURL, params, notesId) {
+  currentURL = baseURL + '?' + paramsWithNotesId(params, notesId).toString();
+  document.getElementById('linkBox').textContent = currentURL;
+  document.getElementById('linkOut').classList.add('show');
 }
 
-function syncGeneratedNotesToLink() {
-  if (!currentURL) return;
+async function saveAgreementLinkNotes(notes) {
   try {
-    const url = new URL(currentURL);
-    const notes = document.getElementById('notes').value.trim();
-    const next = paramsWithNotesEarly(url.searchParams, notes);
-    const query = next.toString();
-    currentURL = url.origin + url.pathname + (query ? '?' + query : '') + url.hash;
-    const linkBox = document.getElementById('linkBox');
-    if (linkBox) linkBox.textContent = currentURL;
+    if (!bsdSupabase) throw new Error('חסר חיבור ל-Supabase');
+    const { data, error } = await bsdSupabase.rpc('save_agreement_link_notes', {
+      p_notes: notes,
+      p_record_id: currentRecordId(),
+      p_record_table: recordTableForType(agreementType)
+    });
+    if (error || !data) throw error || new Error('לא התקבל מזהה');
+    savedNotesText = notes;
+    savedNotesId = String(data);
+    return savedNotesId;
   } catch (err) {
-    console.error('[agreement-notes] failed to sync notes into generated link', err);
+    const detail = err && err.message ? ' (' + err.message + ')' : '';
+    showPrepError(NOTES_SAVE_ERROR + detail);
+    return null;
   }
 }
 
-function openLink() {
-  syncGeneratedNotesToLink();
+async function applyNotesToGeneratedLink() {
+  if (!currentURL) return false;
+  let url;
+  try { url = new URL(currentURL); } catch (err) { return false; }
+  const notes = document.getElementById('notes').value.trim();
+  let notesId = null;
+  if (notes) {
+    if (!(savedNotesId && savedNotesText === notes)) {
+      const id = await saveAgreementLinkNotes(notes);
+      if (!id) return false;
+    }
+    notesId = savedNotesId;
+  } else {
+    savedNotesText = '';
+    savedNotesId = null;
+  }
+  try { url = new URL(currentURL); } catch (err) { return false; }
+  const next = paramsWithNotesId(url.searchParams, notesId);
+  const query = next.toString();
+  currentURL = url.origin + url.pathname + (query ? '?' + query : '') + url.hash;
+  const linkBox = document.getElementById('linkBox');
+  if (linkBox) linkBox.textContent = currentURL;
+  return true;
+}
+
+function syncGeneratedNotesToLink() {
+  const run = notesSyncChain.then(() => applyNotesToGeneratedLink());
+  notesSyncChain = run.then(() => true, () => false);
+  return run;
+}
+
+function scheduleNotesSync() {
+  if (!currentURL || generatingLink) return;
+  clearTimeout(notesInputTimer);
+  notesInputTimer = setTimeout(() => { syncGeneratedNotesToLink(); }, 350);
+}
+
+async function generate() {
+  if (!validate()) return;
+  const genBtn = document.querySelector('.btn-generate');
+  genBtn.disabled = true;
+  genBtn.textContent = '⏳ שומר ויוצר קישור...';
+  generatingLink = true;
+  clearTimeout(notesInputTimer);
+  try {
+    const p = new URLSearchParams();
+    p.set('clientName', document.getElementById('clientName').value.trim());
+    p.set('clientPhone', document.getElementById('clientPhone').value.trim());
+
+    if (agreementType === 'broker') {
+      const brokerId = document.getElementById('brokerId').value.trim();
+      const pct = numFrom('commissionPct2');
+      if (brokerId) {
+        p.set('brokerId', brokerId);
+        if (!bsdSupabase) {
+          showPrepError('שמירת אחוז העמלה נכשלה: חסר חיבור ל-Supabase (הקישור לא נוצר)');
+          return;
+        }
+        const { error } = await bsdSupabase.rpc('set_broker_commission', {
+          p_broker_id: brokerId, p_commission_type: brokerCommissionType, p_pct: pct
+        });
+        if (error) {
+          showPrepError('שמירת אחוז העמלה נכשלה: ' + error.message + ' (הקישור לא נוצר)');
+          return;
+        }
+      }
+      p.set('commissionType', brokerCommissionType);
+      p.set('pct', pct);
+      p.set('agreementDate', document.getElementById('agreementDate').value);
+    } else {
+      if (agreementType === 'seller') {
+        p.set('businessName', document.getElementById('businessName').value.trim());
+        p.set('oneTimePayment', numFrom('oneTimePayment'));
+      }
+      p.set('minFee', numFrom('minFee'));
+      p.set('commissionMode', commissionMode);
+      if (commissionMode === 'flat') {
+        p.set('commissionPercentage', numFrom('commissionPct'));
+      } else {
+        const cleanTiers = tiers.map((t,i) => ({
+          pct: Number(t.pct),
+          upTo: (i === tiers.length-1) ? null : Number(t.upTo)
+        }));
+        p.set('commissionTiers', JSON.stringify(cleanTiers));
+      }
+      p.set('agreementDate', document.getElementById('agreementDate').value);
+      p.set('allowNameEdit', document.getElementById('allowNameEdit').checked ? '1' : '0');
+    }
+
+    const notes = document.getElementById('notes').value.trim();
+    let notesId = null;
+    if (notes) {
+      notesId = await saveAgreementLinkNotes(notes);
+      if (!notesId) {
+        currentURL = '';
+        document.getElementById('linkOut').classList.remove('show');
+        return;
+      }
+    } else {
+      savedNotesText = '';
+      savedNotesId = null;
+    }
+
+    const baseURL = agreementType === 'seller' ? SIGNING_URL_SELLER
+      : agreementType === 'broker' ? SIGNING_URL_BROKER
+      : SIGNING_URL_BUYER;
+    publishSigningUrl(baseURL, p, notesId);
+    document.getElementById('linkOut').scrollIntoView({behavior:'smooth',block:'start'});
+  } finally {
+    generatingLink = false;
+    genBtn.disabled = false;
+    genBtn.textContent = '🔗 יצירת קישור להסכם';
+  }
+}
+
+async function copyLink() {
+  const ok = await syncGeneratedNotesToLink();
+  if (!ok || !currentURL) return;
+  const text = currentURL;
+  navigator.clipboard.writeText(text).then(()=>{
+    const okMsg=document.getElementById('copyOk'); okMsg.classList.add('show'); setTimeout(()=>okMsg.classList.remove('show'),2500);
+  }).catch(()=>{
+    const ta=document.createElement('textarea'); ta.value=text; ta.style.cssText='position:fixed;opacity:0;';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    const okMsg=document.getElementById('copyOk'); okMsg.classList.add('show'); setTimeout(()=>okMsg.classList.remove('show'),2500);
+  });
+}
+
+async function openLink() {
+  const ok = await syncGeneratedNotesToLink();
+  if (!ok || !currentURL) return;
   window.open(currentURL,'_blank');
 }
 
-function sendWA() {
-  syncGeneratedNotesToLink();
+async function sendWA() {
+  const ok = await syncGeneratedNotesToLink();
+  if (!ok || !currentURL) return;
   const name  = document.getElementById('clientName').value.trim();
   const phone = document.getElementById('clientPhone').value.trim();
   const dateR = document.getElementById('agreementDate').value;
@@ -756,7 +856,11 @@ function resetForm() {
   document.getElementById('e_tiers').classList.remove('show');
   document.getElementById('allowNameEdit').checked = false;
   document.getElementById('linkOut').classList.remove('show');
+  document.getElementById('errBanner').textContent = 'יש למלא את כל שדות החובה';
   document.getElementById('errBanner').classList.remove('show');
+  savedNotesText = '';
+  savedNotesId = null;
+  clearTimeout(notesInputTimer);
   ['e_name','e_phone','e_biz','e_pay','e_minfee','e_comm','e_date','e_pct2'].forEach(id=>document.getElementById(id).classList.remove('show'));
   currentURL=''; updatePreview();
   window.scrollTo({top:0,behavior:'smooth'});
