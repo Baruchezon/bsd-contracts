@@ -476,10 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (prefillPct) document.getElementById('commissionPct2').value = prefillPct + '%';
 
   ['clientName','clientPhone','businessName','oneTimePayment','minFee','commissionPct','agreementDate','notes','commissionPct2'].forEach(id =>
-    document.getElementById(id).addEventListener('input', () => {
-      updatePreview();
-      if (id === 'notes') syncGeneratedNotesToLink();
-    }));
+    document.getElementById(id).addEventListener('input', updatePreview));
   document.getElementById('allowNameEdit').addEventListener('change', updatePreview);
   updatePreview();
 });
@@ -645,7 +642,6 @@ async function generate() {
 }
 
 function copyLink() {
-  syncGeneratedNotesToLink();
   navigator.clipboard.writeText(currentURL).then(()=>{
     const ok=document.getElementById('copyOk'); ok.classList.add('show'); setTimeout(()=>ok.classList.remove('show'),2500);
   }).catch(()=>{
@@ -655,28 +651,9 @@ function copyLink() {
   });
 }
 
-function syncGeneratedNotesToLink() {
-  if (!currentURL) return;
-  try {
-    const url = new URL(currentURL);
-    const notes = document.getElementById('notes').value.trim();
-    if (notes) url.searchParams.set('notes', notes);
-    else url.searchParams.delete('notes');
-    currentURL = url.toString();
-    const linkBox = document.getElementById('linkBox');
-    if (linkBox) linkBox.textContent = currentURL;
-  } catch (err) {
-    console.error('[agreement-notes] failed to sync notes into generated link', err);
-  }
-}
-
-function openLink() {
-  syncGeneratedNotesToLink();
-  window.open(currentURL,'_blank');
-}
+function openLink() { window.open(currentURL,'_blank'); }
 
 function sendWA() {
-  syncGeneratedNotesToLink();
   if (!validate()) return;
   const name  = document.getElementById('clientName').value.trim();
   const phone = document.getElementById('clientPhone').value.trim();
