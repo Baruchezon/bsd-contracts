@@ -275,7 +275,6 @@ const SIGNING_URL_BROKER = 'https://baruchezon.github.io/bsd-contracts/bsd-contr
 
 let currentURL = '';
 let agreementType = 'seller';
-let sourceRecordId = '';
 
 function numFrom(id) {
   const raw = document.getElementById(id).value || '';
@@ -464,7 +463,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // מילוי אוטומטי מקישור (בא מה-CRM): ?type=seller|buyer|broker&name=...&phone=...&biz=...
   const params = new URLSearchParams(window.location.search);
-  sourceRecordId = params.get('recordId') || params.get('brokerId') || '';
   const qType = params.get('type');
   if (qType === 'buyer' || qType === 'seller' || qType === 'broker') setType(qType);
   if (params.get('name'))  document.getElementById('clientName').value = params.get('name');
@@ -560,7 +558,6 @@ async function generate() {
   const p = new URLSearchParams();
   p.set('clientName', document.getElementById('clientName').value.trim());
   p.set('clientPhone', document.getElementById('clientPhone').value.trim());
-  if (sourceRecordId) p.set('recordId', sourceRecordId);
 
   if (agreementType === 'broker') {
     const brokerId = document.getElementById('brokerId').value.trim();

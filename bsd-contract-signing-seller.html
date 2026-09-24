@@ -662,89 +662,137 @@ function validate() {
 }
 
 /* ─────────── SUBMIT ─────────── */
-async function submitForm() {
+function submitForm() {
   if (!validate()) {
     const firstErr = document.querySelector('.fg input.error, .sig-err');
-    if (firstErr) firstErr.scrollIntoView({behavior:'smooth', block:'center'});
+    if (firstErr) firstErr.scrollIntoView({behavior:'smooth',block:'center'});
     return;
   }
-
   sigDataUrl = document.getElementById('sigCanvas').toDataURL('image/png');
   const btn = document.querySelector('.btn-submit');
-  const errBanner = document.getElementById('errBanner');
-  btn.disabled = true;
-  btn.textContent = '⏳ שומר הסכם חתום...';
+  btn.disabled = true; btn.textContent = '⏳ שולח...';
 
-  const name = getFullName();
-  const biz = document.getElementById('f_biz').value.trim();
-  const phone = document.getElementById('f_phone').value;
-  const email = document.getElementById('f_email').value;
-  const dt = document.getElementById('f_date').value;
-  const cid = document.getElementById('contractNum').textContent;
-  const ot = document.getElementById('ct_oneTime').textContent;
+  const name   = getFullName();
+  const biz    = document.getElementById('f_biz').value.trim();
+  const phone  = document.getElementById('f_phone').value;
+  const email  = document.getElementById('f_email').value;
+  const dt     = document.getElementById('f_date').value;
+  const cid    = document.getElementById('contractNum').textContent;
   const minFeeEl = document.querySelector('.ct_minFee');
   const minFee = minFeeEl ? minFeeEl.textContent : '35,000';
-  const comm = commissionSummaryText || (document.getElementById('ct_commission').textContent + '%');
-  const sigTime = confirmTime ? confirmTime.toLocaleString('he-IL') : dt;
-  const id_n = document.getElementById('f_id').value;
-  const entity = document.getElementById('f_entity').value.trim() || '-';
-  const street = document.getElementById('f_address').value;
-  const city = document.getElementById('f_city').value;
-  const addr = street + ', ' + city;
-  const notes = document.getElementById('f_notes').value.trim();
-  preparePrintArea(name, biz, id_n, entity, phone, email, addr, dt, cid, ot, comm, sigTime, notes);
-  const tableName = 'businesses';
-  const leadType = null;
-  const details = { business_name: biz, id_number: id_n, entity, address: street, city, notes };
+  const comm   = commissionSummaryText || (document.getElementById('ct_commission').textContent + '%');
+  const sigTime= confirmTime ? confirmTime.toLocaleDateString('he-IL')+' '+confirmTime.toLocaleTimeString('he-IL') : dt;
 
-  try {
-    const { pdf, filename } = await buildPdfDocument();
-    const pdfBase64 = pdf.output('datauristring').split(',')[1];
-    if (!pdfBase64) throw new Error('יצירת קובץ ה PDF נכשלה');
+  const id_n   = document.getElementById('f_id').value;
+  const entity = document.getElementById('f_entity').value;
+  const addr   = document.getElementById('f_address').value+', '+document.getElementById('f_city').value+(document.getElementById('f_zip').value?' '+document.getElementById('f_zip').value:'');
+  const ot     = document.getElementById('ct_oneTime').textContent;
 
-    const params = new URLSearchParams(window.location.search);
-    const recordId = params.get('recordId') || params.get('brokerId') || '';
-    const response = await fetch('https://zcdlegcvfirwzitfxjcs.supabase.co/functions/v1/complete-signed-agreement', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': 'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN'
-      },
-      body: JSON.stringify({
-        table_name: tableName,
-        lead_type: leadType,
-        record_id: recordId,
-        phone,
-        agreement_number: cid,
-        signer_name: name,
-        signer_email: email,
-        signed_at: new Date().toISOString(),
-        pdf_base64: pdfBase64,
-        filename,
-        details
-      })
+  // הכן את אזור ההדפסה
+  preparePrintArea(name, biz, id_n, entity, phone, email, addr, dt, cid, ot, comm, sigTime);
+
+  // שלח WhatsApp אליך עם כל הפרטים
+  const waMsg =
+`🔔 *הסכם חתום חדש – BSD (מוכר עסק)*
+
+👤 *שם:* ${name}
+🏢 *עסק:* ${biz}
+📋 *ח.פ./ת.ז.:* ${id_n}
+📱 *טלפון:* ${phone}
+📧 *אימייל:* ${email}
+🏠 *כתובת:* ${addr}
+💰 *פתיחת תיק:* ${ot} ₪ + מע"מ
+💰 *מינימום שכר הצלחה:* ${minFee} ₪ + מע"מ (או ${comm} מהעסקה, הגבוה מביניהם)
+🔢 *מספר הסכם:* ${cid}
+⏰ *תאריך חתימה:* ${sigTime}
+
+✅ המוכר קרא, אישר וחתם על ההסכם.`;
+
+  // שלח WhatsApp לברוך
+  const waURL = 'https://wa.me/972542424999?text=' + encodeURIComponent(waMsg);
+  setTimeout(() => window.open(waURL, '_blank'), 1200);
+
+  // שלח FormSubmit - עם קובץ ה-PDF החתום מצורף בפועל
+  const formFields = {
+    _subject: 'הסכם חתום (מוכר עסק) – '+name+' | '+biz,
+    _replyto: email,
+    _captcha: 'false',
+    'שם': name, 'עסק': biz, 'טלפון': phone,
+    'אימייל': email, 'כתובת': addr,
+    'מספר הסכם': cid, 'תאריך': sigTime,
+    'דמי פתיחה': ot+' ₪', 'מינימום שכר הצלחה': minFee+' ₪', 'עמלה': comm,
+  };
+
+  // 1) שלח הודעת מייל טקסטואלית - זהה למנגנון שכבר הוכח כעובד (בלי קובץ מצורף)
+  fetch('https://formsubmit.co/ajax/baruch.ezon@gmail.com', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','Accept':'application/json'},
+    body: JSON.stringify(formFields)
+  }).catch(e => console.warn('FormSubmit (טקסט):', e));
+
+  // בונה את ה-PDF פעם אחת בלבד, ומשתמש באותו קובץ גם לצירוף במייל
+  // וגם לשמירה הקבועה בכרטיס העסק ב-BSD-CRM (ולא בונה אותו פעמיים)
+  const bsdCrmClient = window.supabase.createClient(
+    'https://zcdlegcvfirwzitfxjcs.supabase.co',
+    'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN'
+  );
+
+  // עדכון אוטומטי ב-BSD-CRM: משלים עסק קיים לפי טלפון, או פותח עסק חדש אוטומטית אם אינו קיים -
+  // חייב לרוץ ולהסתיים לפני שמחפשים את הרשומה לצורך שמירת קובץ ה-PDF, אחרת אם זה עסק חדש
+  // הרשומה עוד לא קיימת ברגע החיפוש
+  const upsertPromise = bsdCrmClient.rpc('upsert_business_from_agreement', {
+    p_phone: phone,
+    p_owner_name: name,
+    p_biz_name: biz,
+    p_id_number: id_n,
+    p_entity: entity,
+    p_email: email,
+    p_address: document.getElementById('f_address').value,
+    p_city: document.getElementById('f_city').value,
+    p_agreement_number: cid
+  }).then(({ error }) => { if (error) console.warn('עדכון CRM נכשל:', error.message); })
+    .catch(e => console.warn('עדכון CRM נכשל:', e));
+
+  // בונה את ה-PDF פעם אחת בלבד, ומשתמש באותו קובץ גם לצירוף במייל
+  // וגם לשמירה הקבועה בכרטיס העסק ב-BSD-CRM (ולא בונה אותו פעמיים)
+  buildPdfDocument().then(({ pdf, filename }) => {
+    const pdfBlob = pdf.output('blob');
+
+    // 2) מייל עם קובץ ה-PDF החתום מצורף בפועל (endpoint הרגיל, לא ה-ajax, כי צירוף קבצים דורש אותו)
+    const fd = new FormData();
+    Object.entries(formFields).forEach(([k,v]) => fd.append(k, v));
+    fd.append('attachment', pdfBlob, filename);
+    fetch('https://formsubmit.co/baruch.ezon@gmail.com', { method: 'POST', body: fd })
+      .then(r => { if (!r.ok) console.warn('FormSubmit (PDF מצורף) החזיר סטטוס:', r.status); })
+      .catch(e => console.warn('FormSubmit (PDF מצורף):', e));
+
+    // 3) שמירה קבועה של אותו קובץ בדיוק ב-Storage של BSD-CRM, כדי שיהיה נגיש מכרטיס העסק -
+    // רק אחרי שהעסק בוודאות כבר נוצר/עודכן (ראה upsertPromise למעלה)
+    upsertPromise.then(async () => {
+      try {
+        const { data: bizId } = await bsdCrmClient.rpc('find_agreement_record', {
+          p_table_name: 'businesses', p_phone: phone
+        });
+        if (bizId) {
+          const path = `agreements/businesses/${bizId}.pdf`;
+          // בלי upsert:true בכוונה - עדכון (upsert) על קובץ קיים דורש מדיניות UPDATE
+          // נוספת ב-Storage שגורמת לבעיות RLS לא צפויות; במקרה הנדיר של חתימה חוזרת
+          // על אותו עסק, ההעלאה תיכשל בשקט (המייל עדיין נשלח כרגיל) - ניתן לשפר בהמשך
+          const { error: upErr } = await bsdCrmClient.storage.from('business-files')
+            .upload(path, pdfBlob, { upsert: false, contentType: 'application/pdf' });
+          if (upErr) { console.warn('העלאת הסכם ל-Storage נכשלה:', upErr.message); return; }
+          const { error: saveErr } = await bsdCrmClient.rpc('save_agreement_pdf_path', {
+            p_table_name: 'businesses', p_phone: phone, p_path: path
+          });
+          if (saveErr) console.warn('שמירת נתיב ההסכם נכשלה:', saveErr.message);
+        }
+      } catch (e) { console.warn('שמירת ההסכם ב-CRM נכשלה:', e); }
     });
+  }).catch(err => {
+    console.warn('יצירת PDF לצירוף/שמירה נכשלה:', err);
+  });
 
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || !result.ok || !result.saved) {
-      throw new Error(result.error || result.detail || 'שמירת ההסכם נכשלה');
-    }
-
-    showSuccess(name);
-    if (!result.email_sent) {
-      const note = document.getElementById('emailErrNote');
-      if (note) {
-        note.textContent = 'ההסכם נשמר בהצלחה במערכת, אך שליחת המייל נכשלה. קובץ ה PDF זמין בכרטיס הלקוח.';
-        note.style.display = 'block';
-      }
-    }
-  } catch (error) {
-    btn.disabled = false;
-    btn.textContent = 'אישור וחתימה';
-    errBanner.textContent = 'לא ניתן להשלים את החתימה: ' + (error?.message || String(error));
-    errBanner.classList.add('show');
-    errBanner.scrollIntoView({behavior:'smooth', block:'center'});
-  }
+  showSuccess(name);
 }
 
 function showSuccess(name) {
