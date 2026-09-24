@@ -189,8 +189,8 @@ footer a{color:var(--navy);text-decoration:none;}
 
       <div class="fg">
         <label>טלפון נייד <span class="req">*</span> <span class="locked-tag" id="phoneLock"></span></label>
-        <input type="tel" id="f_phone" placeholder="מספר ישראלי או מספר עם קידומת מדינה" dir="ltr" style="text-align:right">
-        <div class="err" id="err_phone">יש להזין מספר ישראלי תקין או מספר בינלאומי עם קידומת מדינה</div>
+        <input type="tel" id="f_phone" placeholder="05X-XXXXXXX" dir="ltr" style="text-align:right">
+        <div class="err" id="err_phone">מספר טלפון לא תקין</div>
       </div>
 
       <div class="fg">
@@ -629,20 +629,6 @@ function clearSig() {
 }
 
 /* ─────────── VALIDATE ─────────── */
-// Accept local Israeli numbers and international numbers without rewriting the
-// stored value: the signing endpoint must match the phone on the existing card.
-function agreementPhoneDigits(value) {
-  const raw = String(value || '').trim();
-  if (!raw || !/^\+?[0-9\s().-]+$/.test(raw)) return null;
-  let digits = raw.replace(/\D/g, '');
-  const international = raw.startsWith('+') || digits.startsWith('00');
-  if (digits.startsWith('00')) digits = digits.slice(2);
-  if (international || !digits.startsWith('0')) {
-    return /^[1-9]\d{7,14}$/.test(digits) ? digits : null;
-  }
-  return /^0[2-9]\d{7,8}$/.test(digits) ? '972' + digits.slice(1) : null;
-}
-
 function validate() {
   let ok = true;
   function req(id, errId) {
@@ -657,7 +643,7 @@ function validate() {
   // Phone
   const ph = document.getElementById('f_phone').value.trim();
   const phErr = document.getElementById('err_phone');
-  if (!agreementPhoneDigits(ph)) { document.getElementById('f_phone').classList.add('error'); phErr.classList.add('show'); ok=false; }
+  if (!ph || !/^0[0-9\-\s]{8,12}$/.test(ph)) { document.getElementById('f_phone').classList.add('error'); phErr.classList.add('show'); ok=false; }
   else { document.getElementById('f_phone').classList.remove('error'); phErr.classList.remove('show'); }
 
   // Email
