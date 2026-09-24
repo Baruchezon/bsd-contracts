@@ -138,7 +138,7 @@ footer a{color:var(--navy);text-decoration:none;}
 
       <div class="fg">
         <label>טלפון הלקוח <span class="req">*</span></label>
-        <input type="tel" id="clientPhone" placeholder="מספר ישראלי או מספר עם קידומת מדינה" dir="ltr" style="text-align:right">
+        <input type="tel" id="clientPhone" placeholder="05X-XXXXXXX" dir="ltr" style="text-align:right">
         <div class="hint">המספר שאליו ישלח ההסכם בוואטסאפ</div>
         <div class="field-error" id="e_phone">שדה חובה</div>
       </div>
@@ -275,7 +275,6 @@ const SIGNING_URL_BROKER = 'https://baruchezon.github.io/bsd-contracts/bsd-contr
 
 let currentURL = '';
 let agreementType = 'seller';
-let sourceRecordId = '';
 
 function numFrom(id) {
   const raw = document.getElementById(id).value || '';
@@ -464,7 +463,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // מילוי אוטומטי מקישור (בא מה-CRM): ?type=seller|buyer|broker&name=...&phone=...&biz=...
   const params = new URLSearchParams(window.location.search);
-  sourceRecordId = params.get('recordId') || params.get('brokerId') || '';
   const qType = params.get('type');
   if (qType === 'buyer' || qType === 'seller' || qType === 'broker') setType(qType);
   if (params.get('name'))  document.getElementById('clientName').value = params.get('name');
@@ -515,30 +513,10 @@ function updatePreview() {
   document.getElementById('pv_edit').textContent = edit ? 'כן – יוכל לתקן' : 'לא – נעול';
 }
 
-// Accept local Israeli numbers and international numbers without rewriting the
-// stored value: the signing endpoint must match the phone on the existing card.
-function agreementPhoneDigits(value) {
-  const raw = String(value || '').trim();
-  if (!raw || !/^\+?[0-9\s().-]+$/.test(raw)) return null;
-  let digits = raw.replace(/\D/g, '');
-  const international = raw.startsWith('+') || digits.startsWith('00');
-  if (digits.startsWith('00')) digits = digits.slice(2);
-  if (international || !digits.startsWith('0')) {
-    return /^[1-9]\d{7,14}$/.test(digits) ? digits : null;
-  }
-  return /^0[2-9]\d{7,8}$/.test(digits) ? '972' + digits.slice(1) : null;
-}
-
 function validate() {
   let ok=true;
   function chk(id,eid){ const v=document.getElementById(id).value.trim(); const e=document.getElementById(eid); if(!v){document.getElementById(id).classList.add('error');e.classList.add('show');ok=false;}else{document.getElementById(id).classList.remove('error');e.classList.remove('show');} }
   chk('clientName','e_name'); chk('clientPhone','e_phone');
-  if (!agreementPhoneDigits(document.getElementById('clientPhone').value)) {
-    document.getElementById('clientPhone').classList.add('error');
-    document.getElementById('e_phone').classList.add('show');
-    document.getElementById('e_phone').textContent = 'יש להזין מספר ישראלי תקין או מספר בינלאומי עם קידומת מדינה';
-    ok = false;
-  }
   if (agreementType === 'seller') { chk('businessName','e_biz'); chk('oneTimePayment','e_pay'); }
   chk('agreementDate','e_date');
 
@@ -583,7 +561,6 @@ async function generate() {
   const p = new URLSearchParams();
   p.set('clientName', document.getElementById('clientName').value.trim());
   p.set('clientPhone', document.getElementById('clientPhone').value.trim());
-  if (sourceRecordId) p.set('recordId', sourceRecordId);
 
   if (agreementType === 'broker') {
     const brokerId = document.getElementById('brokerId').value.trim();
@@ -700,13 +677,13 @@ function openLink() {
 
 function sendWA() {
   syncGeneratedNotesToLink();
-  if (!validate()) return;
   const name  = document.getElementById('clientName').value.trim();
   const phone = document.getElementById('clientPhone').value.trim();
   const dateR = document.getElementById('agreementDate').value;
   let dateFmt = dateR;
   if (dateR) { const [y,m,d]=dateR.split('-'); dateFmt=d+'/'+m+'/'+y; }
-  const cleaned = agreementPhoneDigits(phone);
+  let cleaned = phone.replace(/[\s\-\(\)]/g,'');
+  if (cleaned.startsWith('0')) cleaned = '972' + cleaned.slice(1);
   const t = TYPE_TEXT[agreementType];
 
   if (agreementType === 'broker') {
