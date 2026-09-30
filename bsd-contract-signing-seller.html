@@ -765,86 +765,53 @@ async function submitForm() {
   const waURL = 'https://wa.me/972542424999?text=' + encodeURIComponent(waMsg);
   setTimeout(() => window.open(waURL, '_blank'), 1200);
 
-  // שלח FormSubmit - עם קובץ ה-PDF החתום מצורף בפועל
-  const formFields = {
-    _subject: 'הסכם חתום (מוכר עסק) – '+name+' | '+biz,
-    _replyto: email,
-    _captcha: 'false',
-    'שם': name, 'עסק': biz, 'טלפון': phone,
-    'אימייל': email, 'כתובת': addr,
-    'מספר הסכם': cid, 'תאריך': sigTime,
-    'דמי פתיחה': ot+' ₪', 'מינימום שכר הצלחה': minFee+' ₪', 'עמלה': comm,
-  };
+  // מסלול חתימה מרכזי: שמירה ב-CRM ושליחת ה-PDF דרך Edge Function מאומתת בצד השרת
+  const signedAgreementEndpoint = 'https://zcdlegcvfirwzitfxjcs.supabase.co/functions/v1/complete-signed-agreement';
+  const signedAgreementPublishableKey = 'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN';
 
-  // 1) שלח הודעת מייל טקסטואלית - זהה למנגנון שכבר הוכח כעובד (בלי קובץ מצורף)
-  fetch('https://formsubmit.co/ajax/baruch.ezon@gmail.com', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Accept':'application/json'},
-    body: JSON.stringify(formFields)
-  }).catch(e => console.warn('FormSubmit (טקסט):', e));
-
-  // בונה את ה-PDF פעם אחת בלבד, ומשתמש באותו קובץ גם לצירוף במייל
-  // וגם לשמירה הקבועה בכרטיס העסק ב-BSD-CRM (ולא בונה אותו פעמיים)
-  const bsdCrmClient = window.supabase.createClient(
-    'https://zcdlegcvfirwzitfxjcs.supabase.co',
-    'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN'
-  );
-
-  // עדכון אוטומטי ב-BSD-CRM: משלים עסק קיים לפי טלפון, או פותח עסק חדש אוטומטית אם אינו קיים -
-  // חייב לרוץ ולהסתיים לפני שמחפשים את הרשומה לצורך שמירת קובץ ה-PDF, אחרת אם זה עסק חדש
-  // הרשומה עוד לא קיימת ברגע החיפוש
-  const upsertPromise = bsdCrmClient.rpc('upsert_business_from_agreement', {
-    p_phone: phone,
-    p_owner_name: name,
-    p_biz_name: biz,
-    p_id_number: id_n,
-    p_entity: entity,
-    p_email: email,
-    p_address: document.getElementById('f_address').value,
-    p_city: document.getElementById('f_city').value,
-    p_agreement_number: cid
-  }).then(({ error }) => { if (error) console.warn('עדכון CRM נכשל:', error.message); })
-    .catch(e => console.warn('עדכון CRM נכשל:', e));
-
-  // בונה את ה-PDF פעם אחת בלבד, ומשתמש באותו קובץ גם לצירוף במייל
-  // וגם לשמירה הקבועה בכרטיס העסק ב-BSD-CRM (ולא בונה אותו פעמיים)
-  buildPdfDocument().then(({ pdf, filename }) => {
-    const pdfBlob = pdf.output('blob');
-
-    // 2) מייל עם קובץ ה-PDF החתום מצורף בפועל (endpoint הרגיל, לא ה-ajax, כי צירוף קבצים דורש אותו)
-    const fd = new FormData();
-    Object.entries(formFields).forEach(([k,v]) => fd.append(k, v));
-    fd.append('attachment', pdfBlob, filename);
-    fetch('https://formsubmit.co/baruch.ezon@gmail.com', { method: 'POST', body: fd })
-      .then(r => { if (!r.ok) console.warn('FormSubmit (PDF מצורף) החזיר סטטוס:', r.status); })
-      .catch(e => console.warn('FormSubmit (PDF מצורף):', e));
-
-    // 3) שמירה קבועה של אותו קובץ בדיוק ב-Storage של BSD-CRM, כדי שיהיה נגיש מכרטיס העסק -
-    // רק אחרי שהעסק בוודאות כבר נוצר/עודכן (ראה upsertPromise למעלה)
-    upsertPromise.then(async () => {
-      try {
-        const { data: bizId } = await bsdCrmClient.rpc('find_agreement_record', {
-          p_table_name: 'businesses', p_phone: phone
-        });
-        if (bizId) {
-          const path = `agreements/businesses/${bizId}.pdf`;
-          // בלי upsert:true בכוונה - עדכון (upsert) על קובץ קיים דורש מדיניות UPDATE
-          // נוספת ב-Storage שגורמת לבעיות RLS לא צפויות; במקרה הנדיר של חתימה חוזרת
-          // על אותו עסק, ההעלאה תיכשל בשקט (המייל עדיין נשלח כרגיל) - ניתן לשפר בהמשך
-          const { error: upErr } = await bsdCrmClient.storage.from('business-files')
-            .upload(path, pdfBlob, { upsert: false, contentType: 'application/pdf' });
-          if (upErr) { console.warn('העלאת הסכם ל-Storage נכשלה:', upErr.message); return; }
-          const { error: saveErr } = await bsdCrmClient.rpc('save_agreement_pdf_path', {
-            p_table_name: 'businesses', p_phone: phone, p_path: path
-          });
-          if (saveErr) console.warn('שמירת נתיב ההסכם נכשלה:', saveErr.message);
-        }
-      } catch (e) { console.warn('שמירת ההסכם ב-CRM נכשלה:', e); }
+  async function completeSignedAgreement() {
+    const { pdf, filename } = await buildPdfDocument();
+    const pdfBase64 = pdf.output('datauristring');
+    const response = await fetch(signedAgreementEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': signedAgreementPublishableKey,
+        'Authorization': 'Bearer ' + signedAgreementPublishableKey
+      },
+      body: JSON.stringify({
+        table_name: 'businesses',
+        phone,
+        agreement_number: cid,
+        signer_name: name,
+        signer_email: email,
+        pdf_base64: pdfBase64,
+        filename,
+        details: {
+        business_name: biz,
+        id_number: id_n,
+        entity,
+        address: document.getElementById('f_address').value,
+        city: document.getElementById('f_city').value
+      }
+      })
     });
-  }).catch(err => {
-    console.warn('יצירת PDF לצירוף/שמירה נכשלה:', err);
-  });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) {
+      throw new Error(result.warning || result.error || 'שגיאה בהשלמת ההסכם');
+    }
+    if (!result.email_sent) {
+      throw new Error(result.warning || 'ההסכם נשמר אך שליחת המייל לא אושרה');
+    }
+    return result;
+  }
 
+  completeSignedAgreement()
+    .then(() => showSuccess(name))
+    .catch((error) => {
+      console.error('שגיאה בהשלמת ההסכם:', error);
+      alert('החתימה נשמרה חלקית אך שליחת העותק נכשלה. יש לנסות שוב או לפנות למשרד.');
+    });
   showSuccess(name);
 }
 
