@@ -693,69 +693,54 @@ ${notesLine}🔢 *מספר הסכם:* ${cid}
   const waURL = 'https://wa.me/972542424999?text=' + encodeURIComponent(waMsg);
   setTimeout(() => window.open(waURL, '_blank'), 1200);
 
-  // שלח FormSubmit - עם קובץ ה-PDF החתום מצורף בפועל
-  const formFields = Object.assign({
-    _subject: 'הסכם חתום (מתווך) – '+name,
-    _replyto: email,
-    _captcha: 'false',
-    'שם': name, 'ת.ז./ח.פ.': id_n, 'חברה/עוסק': entity, 'טלפון': phone,
-    'אימייל': email, 'כתובת': addr,
-    'מספר הסכם': cid, 'תאריך': sigTime,
-    'אחוזי עמלה': comm,
-  }, notes ? {'הערות': notes} : {});
+  // מסלול חתימה מרכזי: שמירה ב-CRM ושליחת ה-PDF דרך Edge Function מאומתת בצד השרת
+  const signedAgreementEndpoint = 'https://zcdlegcvfirwzitfxjcs.supabase.co/functions/v1/complete-signed-agreement';
+  const signedAgreementPublishableKey = 'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN';
 
-  // 1) שלח הודעת מייל טקסטואלית - זהה למנגנון שכבר הוכח כעובד (בלי קובץ מצורף)
-  fetch('https://formsubmit.co/ajax/baruch.ezon@gmail.com', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','Accept':'application/json'},
-    body: JSON.stringify(formFields)
-  }).catch(e => console.warn('FormSubmit (טקסט):', e));
-
-  const bsdCrmClient = window.supabase.createClient(
-    'https://zcdlegcvfirwzitfxjcs.supabase.co',
-    'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN'
-  );
-
-  // המתווך כבר קיים בכרטיס BSD-CRM (נוצר מראש לפני שליחת ההסכם) - אין צורך ב-upsert של רשומה
-  // חדשה; מזוהה ישירות לפי brokerId שהועבר בקישור, כדי למנוע שיוך שגוי לפי שם דומה
-  const params0 = new URLSearchParams(window.location.search);
-  const brokerId = params0.get('brokerId') || null;
-
-  // בונה את ה-PDF פעם אחת בלבד, ומשתמש באותו קובץ גם לצירוף במייל
-  // וגם לשמירה הקבועה בכרטיס המתווך ב-BSD-CRM (ולא בונה אותו פעמיים)
-  buildPdfDocument().then(({ pdf, filename }) => {
-    const pdfBlob = pdf.output('blob');
-
-    const fd = new FormData();
-    Object.entries(formFields).forEach(([k,v]) => fd.append(k, v));
-    fd.append('attachment', pdfBlob, filename);
-    fetch('https://formsubmit.co/baruch.ezon@gmail.com', { method: 'POST', body: fd })
-      .then(r => { if (!r.ok) console.warn('FormSubmit (PDF מצורף) החזיר סטטוס:', r.status); })
-      .catch(e => console.warn('FormSubmit (PDF מצורף):', e));
-
-    // שמירה קבועה של אותו קובץ בדיוק ב-Storage של BSD-CRM, נגישה מכרטיס המתווך -
-    // נתיב עקבי עם מוסכמת agreements/{table}/{id}.pdf הקיימת לעסקים ולידים
-    if (brokerId) {
-      (async () => {
-        try {
-          const path = `agreements/brokers/${brokerId}.pdf`;
-          const { error: upErr } = await bsdCrmClient.storage.from('business-files')
-            .upload(path, pdfBlob, { upsert: false, contentType: 'application/pdf' });
-          if (upErr) { console.warn('העלאת הסכם ל-Storage נכשלה:', upErr.message); return; }
-          const { error: saveErr } = await bsdCrmClient.rpc('save_broker_agreement_pdf', {
-            p_broker_id: brokerId, p_path: path, p_agreement_number: cid
-          });
-          if (saveErr) console.warn('שמירת נתיב ההסכם נכשלה:', saveErr.message);
-        } catch (e) { console.warn('שמירת ההסכם ב-CRM נכשלה:', e); }
-      })();
-    } else {
-      console.warn('brokerId חסר בקישור - לא ניתן לשייך את ההסכם לכרטיס מתווך');
+  async function completeSignedAgreement() {
+    const { pdf, filename } = await buildPdfDocument();
+    const pdfBase64 = pdf.output('datauristring');
+    const response = await fetch(signedAgreementEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': signedAgreementPublishableKey,
+        'Authorization': 'Bearer ' + signedAgreementPublishableKey
+      },
+      body: JSON.stringify({
+        table_name: 'brokers',
+        record_id: brokerId,
+        phone,
+        agreement_number: cid,
+        signer_name: name,
+        signer_email: email,
+        pdf_base64: pdfBase64,
+        filename,
+        details: {
+        id_number: id_n,
+        entity,
+        address: addr,
+        city: document.getElementById('f_city').value,
+        broker_id: brokerId
+      }
+      })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) {
+      throw new Error(result.warning || result.error || 'שגיאה בהשלמת ההסכם');
     }
-  }).catch(err => {
-    console.warn('יצירת PDF לצירוף/שמירה נכשלה:', err);
-  });
+    if (!result.email_sent) {
+      throw new Error(result.warning || 'ההסכם נשמר אך שליחת המייל לא אושרה');
+    }
+    return result;
+  }
 
-  showSuccess(name);
+  completeSignedAgreement()
+    .then(() => showSuccess(name))
+    .catch((error) => {
+      console.error('שגיאה בהשלמת ההסכם:', error);
+      alert('החתימה נשמרה חלקית אך שליחת העותק נכשלה. יש לנסות שוב או לפנות למשרד.');
+    });
 }
 
 function showSuccess(name) {
