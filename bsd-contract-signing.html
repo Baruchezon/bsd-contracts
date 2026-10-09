@@ -683,7 +683,8 @@ async function submitForm() {
   setTimeout(() => window.open(waURL, '_blank'), 1200);
 
   // שלח FormSubmit
-  fetch('https://formsubmit.co/ajax/baruch.ezon@gmail.com', {
+  // FormSubmit alias of info@bsd-bbi.co.il (activated 09.10.2026), so the address is not exposed in the page.
+  fetch('https://formsubmit.co/ajax/7844ae221246b75f1b700f26ba2338fd', {
     method: 'POST',
     headers: {'Content-Type':'application/json','Accept':'application/json'},
     body: JSON.stringify({
