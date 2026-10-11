@@ -256,6 +256,7 @@ footer a{color:var(--navy);text-decoration:none;}
         <button class="btn btn-copy"  onclick="copyLink()">📋 העתק קישור</button>
         <button class="btn btn-open"  onclick="openLink()">🔍 פתח לבדיקה</button>
         <button class="btn btn-wa"    onclick="sendWA()">💬 שלח בוואטסאפ</button>
+        <button class="btn btn-wa" id="btnWaApi" style="display:none;background:#0f5132;" onclick="sendWAApi()">📲 שלח מ-077 (WhatsApp עסקי)</button>
         <button class="btn btn-reset" onclick="resetForm()">🔄 הסכם חדש</button>
       </div>
       <div style="margin-top:14px;background:#FFFBEB;border:1px solid #F59E0B;border-radius:8px;padding:11px 13px;font-size:12px;color:#78350F;">
@@ -772,6 +773,51 @@ async function openLink() {
   const ok = await syncGeneratedNotesToLink();
   if (!ok || !currentURL) return;
   window.open(currentURL,'_blank');
+}
+
+// 11.10.2026 (WhatsApp Cloud API, 077-444-6707). Shown only when the CRM opened this page with waApi=1, which it
+// does only for cards switched to the 077 channel. Sends the approved template «bsd_agreement_to_sign» with a
+// «לצפייה וחתימה» button (short link that carries the record id) through the whatsapp-send edge function, using the
+// CRM session of this browser. The 054 button above (sendWA, wa.me) is unchanged.
+const WA_API_ENDPOINT = 'https://zcdlegcvfirwzitfxjcs.supabase.co/functions/v1/whatsapp-send';
+const WA_API_ERRORS = {
+  record_not_on_api_channel: 'הכרטיס עדיין משויך ל-054. אפשר לשלוח בכפתור הירוק הרגיל.',
+  dry_run_number_not_allowed: 'מצב בדיקה: אפשר לשלוח רק למספר הבדיקה.',
+  no_consent: 'אין בכרטיס אישור לקבלת הודעות WhatsApp.', opted_out: 'הלקוח ביקש הסרה. אין לשלוח לו הודעות.',
+  already_signed: 'ההסכם כבר חתום.', forbidden_agreement: 'אין לך הרשאה לשלוח הסכמים.', disabled: 'שליחה מ-077 עדיין לא הופעלה.',
+  phone_not_on_record: 'הטלפון בטופס שונה מהטלפון בכרטיס ב-CRM.', bad_signing_url: 'קישור החתימה לא תקין.',
+};
+(function () {
+  if (new URLSearchParams(window.location.search).get('waApi') === '1') {
+    const b = document.getElementById('btnWaApi'); if (b) b.style.display = '';
+  }
+})();
+function waApiRecordTable() {
+  const t = new URLSearchParams(window.location.search).get('recordTable');
+  return ['leads', 'businesses', 'brokers'].includes(t) ? t : recordTableForType(agreementType);
+}
+async function sendWAApi() {
+  const ok = await syncGeneratedNotesToLink();
+  if (!ok || !currentURL) return;
+  const recordId = currentRecordId();
+  if (!recordId) { showPrepError('לא נמצא כרטיס CRM מקושר. פתחו את ההכנה מתוך הכרטיס ב-CRM.'); return; }
+  if (!bsdSupabase) { showPrepError('אין חיבור ל-Supabase.'); return; }
+  const { data } = await bsdSupabase.auth.getSession();
+  const token = data && data.session && data.session.access_token;
+  if (!token) { showPrepError('יש להתחבר ל-CRM בדפדפן הזה ואז לנסות שוב.'); return; }
+  const btn = document.getElementById('btnWaApi');
+  btn.disabled = true;
+  try {
+    const r = await fetch(WA_API_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token,
+      'apikey': 'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN' }, body: JSON.stringify({ action: 'send_agreement',
+      record: { table: waApiRecordTable(), id: recordId }, signing_url: currentURL,
+      phone: document.getElementById('clientPhone').value.trim(), client_request_id: crypto.randomUUID() }) });
+    const j = await r.json().catch(() => ({}));
+    if (!j.ok) { showPrepError('השליחה מ-077 נכשלה: ' + (WA_API_ERRORS[j.error] || j.error || r.status)); return; }
+    alert(j.simulated ? 'נשלח בסימולציה (לא יצא בפועל).' : 'ההסכם נשלח מ-077 עם כפתור «לצפייה וחתימה».');
+  } catch (e) {
+    showPrepError('השליחה מ-077 נכשלה: ' + e.message);
+  } finally { btn.disabled = false; }
 }
 
 async function sendWA() {
