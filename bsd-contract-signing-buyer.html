@@ -745,6 +745,12 @@ ${notesLine}🔢 *מספר הסכם:* ${cid}
   const signedAgreementEndpoint = 'https://zcdlegcvfirwzitfxjcs.supabase.co/functions/v1/complete-signed-agreement';
   const signedAgreementPublishableKey = 'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN';
 
+  // 11.10.2026 (WhatsApp 077): the record id travels in the link (rid/rt from the 077 short link, brokerId from
+  // admin-prep), so the signature is saved to the exact CRM card. The server still requires the phone to match it.
+  const bsdLinkParams = new URLSearchParams(window.location.search);
+  const bsdUuid = v => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || '')) ? String(v) : undefined;
+  const bsdRecordId = bsdLinkParams.get('rt') === 'leads' ? bsdUuid(bsdLinkParams.get('rid')) : undefined;
+
   async function completeSignedAgreement() {
     const { pdf, filename } = await buildPdfDocument();
     const pdfBase64 = pdf.output('datauristring');
@@ -758,6 +764,7 @@ ${notesLine}🔢 *מספר הסכם:* ${cid}
       body: JSON.stringify({
         table_name: 'leads',
         lead_type: 'buyer',
+        record_id: bsdRecordId,
         phone,
         agreement_number: cid,
         signer_name: name,
