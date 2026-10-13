@@ -820,69 +820,46 @@ async function sendWAApi() {
   } finally { btn.disabled = false; }
 }
 
+// 13.10.2026 (Baruch): the 054 WhatsApp message keeps the friendly opener, drops the agreement details and the long
+// link, and carries one short respectful line plus a short BSD link (/go/<code>) that opens the same signing page.
+// The signing page and the signing flow are unchanged. If the short link cannot be created, the regular link is used.
+const WA_SHORT_LINK_BASE = 'https://zcdlegcvfirwzitfxjcs.supabase.co/functions/v1/go/';
+async function shortAgreementLink(url) {
+  try {
+    if (!bsdSupabase) return url;
+    const id = currentRecordId();
+    const { data, error } = await bsdSupabase.rpc('wa_create_agreement_short_link', {
+      p_url: url, p_table: id ? waApiRecordTable() : null, p_id: id || null });
+    if (error || !data || !/^[A-Za-z0-9]{8,16}$/.test(String(data))) return url;
+    return WA_SHORT_LINK_BASE + data;
+  } catch (e) { return url; }
+}
+
+function agreementWaMessage(name, intro, link) {
+  return `שלום ${name},
+
+${intro}
+
+הכנו עבורך את ההסכם לעיון וחתימה דיגיטלית. בלחיצה על הקישור ייפתח ההסכם, ושם אפשר למלא את הפרטים ולחתום:
+👈 ${link}
+
+לשאלות אני כאן,
+ברוך איזון | BSD Business Brokers Israel 🤝`;
+}
+
 async function sendWA() {
   const ok = await syncGeneratedNotesToLink();
   if (!ok || !currentURL) return;
   const name  = document.getElementById('clientName').value.trim();
   const phone = document.getElementById('clientPhone').value.trim();
-  const dateR = document.getElementById('agreementDate').value;
-  let dateFmt = dateR;
-  if (dateR) { const [y,m,d]=dateR.split('-'); dateFmt=d+'/'+m+'/'+y; }
   let cleaned = phone.replace(/[\s\-\(\)]/g,'');
   if (cleaned.startsWith('0')) cleaned = '972' + cleaned.slice(1);
   const t = TYPE_TEXT[agreementType];
-
-  if (agreementType === 'broker') {
-    const pct2 = numFrom('commissionPct2');
-    const msgBroker =
-`שלום ${name},
-
-${t.waIntro}
-
-📋 *פרטי ההסכם:*
-• סוג התקשרות: ${brokerCommissionType}
-• אחוז עמלה: ${pct2}%
-• תאריך: ${dateFmt}
-
-לחץ על הקישור הבא, קרא את ההסכם, מלא את פרטיך וחתום:
-
-${currentURL}
-
-לשאלות אני כאן,
-ברוך איזון | BSD Business Brokers Israel 🤝
-📱 bsd-bbi.co.il`;
-    window.open('https://wa.me/'+cleaned+'?text='+encodeURIComponent(msgBroker),'_blank');
-    return;
-  }
-
-  const biz   = document.getElementById('businessName').value.trim();
-  const pay   = numFrom('oneTimePayment').toLocaleString('he-IL');
-  const minFee = numFrom('minFee').toLocaleString('he-IL');
-  const commText = commissionMode === 'tiered'
-    ? describeTiers(tiers).join(' + ')
-    : numFrom('commissionPct') + '%';
-
-  const bizLine = agreementType === 'seller' ? `• שם העסק: ${biz}\n` : '';
-  const payLine = agreementType === 'seller' ? `• דמי פתיחת תיק: ${pay} ₪ (לא כולל מע"מ)\n` : '';
-
-  const msg =
-`שלום ${name},
-
-${t.waIntro}
-
-📋 *פרטי ההסכם:*
-${bizLine}${payLine}• שכר הצלחה מינימלי: ${minFee} ₪ (לא כולל מע"מ) (או ${commText} מהעסקה, הגבוה מביניהם)
-• תאריך: ${dateFmt}
-
-לחץ על הקישור הבא, קרא את ההסכם, מלא את פרטיך וחתום:
-
-${currentURL}
-
-לשאלות אני כאן,
-ברוך איזון | BSD Business Brokers Israel 🤝
-📱 bsd-bbi.co.il`;
-
-  window.open('https://wa.me/'+cleaned+'?text='+encodeURIComponent(msg),'_blank');
+  // open the tab synchronously (popup blockers), then point it at wa.me once the short link is ready
+  const win = window.open('about:blank', '_blank');
+  const link = await shortAgreementLink(currentURL);
+  const waUrl = 'https://wa.me/'+cleaned+'?text='+encodeURIComponent(agreementWaMessage(name, t.waIntro, link));
+  if (win) win.location.href = waUrl; else window.open(waUrl, '_blank');
 }
 
 function resetForm() {
