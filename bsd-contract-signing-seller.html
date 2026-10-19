@@ -121,6 +121,16 @@ body{font-family:'Heebo',Arial,sans-serif;background:var(--bg);color:#1A1A2E;dir
 #successScreen h2{font-size:22px;font-weight:800;color:var(--green);margin-bottom:7px;}
 #successScreen p{font-size:14px;color:var(--gray);max-width:400px;margin:0 auto 22px;}
 
+/* SAVE PROGRESS / FAILURE */
+.save-progress{display:none;align-items:flex-start;gap:12px;margin-top:14px;padding:14px 16px;background:#EFF6FF;border:1.5px solid #93C5FD;border-radius:10px;color:var(--navy);font-weight:700;font-size:15px;line-height:1.5;text-align:right;}
+.save-progress p{margin:0;color:var(--navy);font-weight:700;font-size:15px;max-width:none;}
+.save-progress-spinner{width:22px;height:22px;margin-top:2px;border-radius:50%;border:3px solid #BFDBFE;border-top-color:var(--navy);animation:bsdSpin .8s linear infinite;flex-shrink:0;}
+@keyframes bsdSpin{to{transform:rotate(360deg)}}
+#saveFailure{display:none;margin-top:14px;padding:16px;background:#FEF2F2;border:1.5px solid #FECACA;border-radius:10px;text-align:center;}
+#saveFailureMessage{color:var(--red);font-size:17px;font-weight:800;margin:0 0 12px;}
+#saveFailure .btn{margin-top:8px;}
+a#waShareBtn{display:none;text-decoration:none;margin:0 auto 10px;width:100%;}
+
 /* PRIVACY */
 .privacy-note{font-size:12px;color:var(--gray);text-align:center;margin-top:14px;padding:10px;background:var(--white);border-radius:7px;border:1px solid var(--border);}
 
@@ -271,6 +281,15 @@ footer a{color:var(--navy);text-decoration:none;}
     <div class="card-title"><span class="num-badge">5</span> שליחה וקבלת ההסכם</div>
     <div class="err-banner" id="errBanner">יש לתקן את השגיאות המסומנות לפני שליחה</div>
     <button class="btn btn-submit" onclick="submitForm()">✅ אישור, חתימה ושליחת ההסכם</button>
+    <div id="saveProgress" class="save-progress" role="status" aria-live="polite">
+      <div class="save-progress-spinner" aria-hidden="true"></div>
+      <p id="saveProgressText">שומר את ההסכם... נא לא לצאת מהדף</p>
+    </div>
+    <div id="saveFailure" role="alert">
+      <p id="saveFailureMessage">ההסכם לא נשמר – נסו שוב</p>
+      <button id="retrySaveBtn" class="btn btn-submit" onclick="BsdSigningDelivery.retry()">נסו שוב</button>
+      <button id="failPdfBtn" class="btn btn-pdf" onclick="BsdSigningDelivery.downloadPdf()">הורד PDF של ההסכם</button>
+    </div>
     <div class="privacy-note">🔒 הפרטים נמסרים לצורך עריכת הסכם ההתקשרות והשלמת תהליך ההתקשרות בלבד.</div>
   </div>
 
@@ -284,6 +303,7 @@ footer a{color:var(--navy);text-decoration:none;}
     </div>
     <h2>ההסכם נחתם בהצלחה!</h2>
     <p>תודה, <strong id="suc_name"></strong>. ההסכם אושר וחתמת עליו.<br>לחץ על הכפתור למטה להדפסה / שמירה כ-PDF.</p>
+    <a id="waShareBtn" class="btn btn-submit" href="#" target="_blank" rel="noopener noreferrer">שלח לברוך בוואטסאפ</a>
     <button id="printBtn" class="btn btn-pdf" onclick="printContract()" style="margin-bottom:10px;">🖨️ הורד PDF של ההסכם החתום</button>
     <div id="emailErrNote" style="display:none;background:#FEF9C3;border:1px solid #F59E0B;border-radius:8px;padding:10px 14px;font-size:12px;color:#78350F;margin-bottom:12px;">⚠️ שליחת המייל נכשלה – ניתן לשלוח ידנית ל-info@bsd-bbi.co.il</div>
     <p style="margin-top:14px;font-size:13px;color:var(--gray);">לשאלות: <a href="mailto:info@bsd-bbi.co.il">info@bsd-bbi.co.il</a> | <a href="https://bsd-bbi.co.il">bsd-bbi.co.il</a></p>
@@ -354,6 +374,8 @@ footer a{color:var(--navy);text-decoration:none;}
 
 <footer>BSD Business Brokers Israel | <a href="https://bsd-bbi.co.il">bsd-bbi.co.il</a> | ברוך איזון</footer>
 
+<script>window.BSD_SIGNING_PAGE = 'seller';</script>
+<script src="bsd-signing-delivery.js?v=20261019"></script>
 <script>
 /* ─────────── GLOBALS ─────────── */
 let hasSigned = false, sigDataUrl = null, confirmTime = null;
@@ -722,8 +744,8 @@ async function submitForm() {
     return;
   }
   sigDataUrl = document.getElementById('sigCanvas').toDataURL('image/png');
-  const btn = document.querySelector('.btn-submit');
-  btn.disabled = true; btn.textContent = '⏳ שולח...';
+  const btn = document.querySelector('#mainContent .btn-submit');
+  if (btn) btn.disabled = true;
 
   const name   = getFullName();
   const biz    = document.getElementById('f_biz').value.trim();
@@ -761,9 +783,8 @@ async function submitForm() {
 
 ✅ המוכר קרא, אישר וחתם על ההסכם.`;
 
-  // שלח WhatsApp לברוך
+  // וואטסאפ נפתח רק אחרי שהשרת אישר, בלחיצה של הלקוח (בלי טיימר שמכניס את הדף לרקע).
   const waURL = 'https://wa.me/972542424999?text=' + encodeURIComponent(waMsg);
-  setTimeout(() => window.open(waURL, '_blank'), 1200);
 
   // מסלול חתימה מרכזי: שמירה ב-CRM ושליחת ה-PDF דרך Edge Function מאומתת בצד השרת
   const signedAgreementEndpoint = 'https://zcdlegcvfirwzitfxjcs.supabase.co/functions/v1/complete-signed-agreement';
@@ -775,50 +796,43 @@ async function submitForm() {
   const bsdUuid = v => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || '')) ? String(v) : undefined;
   const bsdRecordId = bsdLinkParams.get('rt') === 'businesses' ? bsdUuid(bsdLinkParams.get('rid')) : undefined;
 
-  async function completeSignedAgreement() {
-    const { pdf, filename } = await buildPdfDocument();
-    const pdfBase64 = pdf.output('datauristring');
-    const response = await fetch(signedAgreementEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': signedAgreementPublishableKey,
-        'Authorization': 'Bearer ' + signedAgreementPublishableKey
-      },
-      body: JSON.stringify({
-        table_name: 'businesses',
-        record_id: bsdRecordId,
-        phone,
-        agreement_number: cid,
-        signer_name: name,
-        signer_email: email,
-        pdf_base64: pdfBase64,
-        filename,
-        details: {
-        business_name: biz,
-        id_number: id_n,
-        entity,
-        address: document.getElementById('f_address').value,
-        city: document.getElementById('f_city').value
-      }
-      })
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || !result.ok) {
-      throw new Error(result.warning || result.error || 'שגיאה בהשלמת ההסכם');
+  await BsdSigningDelivery.begin({
+    pageKey: 'seller',
+    endpoint: signedAgreementEndpoint,
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': signedAgreementPublishableKey,
+      'Authorization': 'Bearer ' + signedAgreementPublishableKey
+    },
+    requireEmailSent: true,
+    signerName: name,
+    waURL: waURL,
+    buildBody: async () => {
+      const { pdf, filename } = await buildPdfDocument();
+      BsdSigningDelivery.rememberPdf(pdf, filename);
+      return {
+        filename: filename,
+        pdfDoc: pdf,
+        body: {
+          table_name: 'businesses',
+          record_id: bsdRecordId,
+          phone: phone,
+          agreement_number: cid,
+          signer_name: name,
+          signer_email: email,
+          pdf_base64: pdf.output('datauristring'),
+          filename: filename,
+          details: {
+            business_name: biz,
+            id_number: id_n,
+            entity: entity,
+            address: document.getElementById('f_address').value,
+            city: document.getElementById('f_city').value
+          }
+        }
+      };
     }
-    if (!result.email_sent) {
-      throw new Error(result.warning || 'ההסכם נשמר אך שליחת המייל לא אושרה');
-    }
-    return result;
-  }
-
-  completeSignedAgreement()
-    .then(() => showSuccess(name))
-    .catch((error) => {
-      console.error('שגיאה בהשלמת ההסכם:', error);
-      alert('החתימה נשמרה חלקית אך שליחת העותק נכשלה. יש לנסות שוב או לפנות למשרד.');
-    });
+  });
 }
 
 function showSuccess(name) {
@@ -885,16 +899,17 @@ function buildPdfDocument() {
     }));
 
     waitForImages.then(() => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)))).then(() => {
+    const bsdPdfScale = (window.BsdSigningDelivery && BsdSigningDelivery.PDF_SCALE) || 1.2;
+    const bsdJpegQuality = (window.BsdSigningDelivery && BsdSigningDelivery.PDF_JPEG_QUALITY) || 0.66;
     html2canvas(area, {
-      scale: 2,
+      scale: bsdPdfScale,
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff',
       windowWidth: 900,
     }).then(canvas => {
       const { jsPDF } = window.jspdf;
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+      const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
       const pdfW = pdf.internal.pageSize.getWidth();
       const pdfH = pdf.internal.pageSize.getHeight();
       const canvasW = canvas.width;
@@ -908,7 +923,7 @@ function buildPdfDocument() {
         pageCanvas.height = Math.min(pageHeightPx, canvasH - y);
         const ctx = pageCanvas.getContext('2d');
         ctx.drawImage(canvas, 0, y, canvasW, pageCanvas.height, 0, 0, canvasW, pageCanvas.height);
-        const pageImg = pageCanvas.toDataURL('image/jpeg', 0.95);
+        const pageImg = pageCanvas.toDataURL('image/jpeg', bsdJpegQuality);
         if (y > 0) pdf.addPage();
         pdf.addImage(pageImg, 'JPEG', 0, 0, pdfW, pageCanvas.height * ratio);
         y += pageHeightPx;
