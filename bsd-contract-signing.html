@@ -6,6 +6,7 @@
 <title>הסכם התקשרות – BSD Business Brokers Israel</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
@@ -115,6 +116,16 @@ body{font-family:'Heebo',Arial,sans-serif;background:var(--bg);color:#1A1A2E;dir
 #successScreen .check-icon{width:68px;height:68px;background:#DCFCE7;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;}
 #successScreen h2{font-size:22px;font-weight:800;color:var(--green);margin-bottom:7px;}
 #successScreen p{font-size:14px;color:var(--gray);max-width:400px;margin:0 auto 22px;}
+
+/* SAVE PROGRESS / FAILURE */
+.save-progress{display:none;align-items:flex-start;gap:12px;margin-top:14px;padding:14px 16px;background:#EFF6FF;border:1.5px solid #93C5FD;border-radius:10px;color:var(--navy);font-weight:700;font-size:15px;line-height:1.5;text-align:right;}
+.save-progress p{margin:0;color:var(--navy);font-weight:700;font-size:15px;max-width:none;}
+.save-progress-spinner{width:22px;height:22px;margin-top:2px;border-radius:50%;border:3px solid #BFDBFE;border-top-color:var(--navy);animation:bsdSpin .8s linear infinite;flex-shrink:0;}
+@keyframes bsdSpin{to{transform:rotate(360deg)}}
+#saveFailure{display:none;margin-top:14px;padding:16px;background:#FEF2F2;border:1.5px solid #FECACA;border-radius:10px;text-align:center;}
+#saveFailureMessage{color:var(--red);font-size:17px;font-weight:800;margin:0 0 12px;}
+#saveFailure .btn{margin-top:8px;}
+a#waShareBtn{display:none;text-decoration:none;margin:0 auto 10px;width:100%;}
 
 /* PRIVACY */
 .privacy-note{font-size:12px;color:var(--gray);text-align:center;margin-top:14px;padding:10px;background:var(--white);border-radius:7px;border:1px solid var(--border);}
@@ -332,6 +343,15 @@ footer a{color:var(--navy);text-decoration:none;}
     <div class="card-title"><span class="num-badge">5</span> שליחה וקבלת ההסכם</div>
     <div class="err-banner" id="errBanner">יש לתקן את השגיאות המסומנות לפני שליחה</div>
     <button class="btn btn-submit" onclick="submitForm()">✅ אישור, חתימה ושליחת ההסכם</button>
+    <div id="saveProgress" class="save-progress" role="status" aria-live="polite">
+      <div class="save-progress-spinner" aria-hidden="true"></div>
+      <p id="saveProgressText">שומר את ההסכם... נא לא לצאת מהדף</p>
+    </div>
+    <div id="saveFailure" role="alert">
+      <p id="saveFailureMessage">ההסכם לא נשמר – נסו שוב</p>
+      <button id="retrySaveBtn" class="btn btn-submit" onclick="BsdSigningDelivery.retry()">נסו שוב</button>
+      <button id="failPdfBtn" class="btn btn-pdf" onclick="BsdSigningDelivery.downloadPdf()">הורד PDF של ההסכם</button>
+    </div>
     <div class="privacy-note">🔒 הפרטים נמסרים לצורך עריכת הסכם ההתקשרות והשלמת תהליך ההתקשרות בלבד.</div>
   </div>
 
@@ -345,7 +365,8 @@ footer a{color:var(--navy);text-decoration:none;}
     </div>
     <h2>ההסכם נחתם בהצלחה!</h2>
     <p>תודה, <strong id="suc_name"></strong>. ההסכם אושר וחתמת עליו.<br>לחץ על הכפתור למטה להדפסה / שמירה כ-PDF.</p>
-    <button class="btn btn-pdf" onclick="printContract()" style="margin-bottom:10px;">🖨️ שמור / הדפס עותק PDF של ההסכם</button>
+    <a id="waShareBtn" class="btn btn-submit" href="#" target="_blank" rel="noopener noreferrer">שלח לברוך בוואטסאפ</a>
+    <button id="printBtn" class="btn btn-pdf" onclick="printContract()" style="margin-bottom:10px;">🖨️ שמור / הדפס עותק PDF של ההסכם</button>
     <div id="emailErrNote" style="display:none;background:#FEF9C3;border:1px solid #F59E0B;border-radius:8px;padding:10px 14px;font-size:12px;color:#78350F;margin-bottom:12px;">⚠️ שליחת המייל נכשלה – ניתן לשלוח ידנית ל-info@bsd-bbi.co.il</div>
     <p style="margin-top:14px;font-size:13px;color:var(--gray);">לשאלות: <a href="mailto:info@bsd-bbi.co.il">info@bsd-bbi.co.il</a> | <a href="https://bsd-bbi.co.il">bsd-bbi.co.il</a></p>
   </div>
@@ -411,6 +432,8 @@ footer a{color:var(--navy);text-decoration:none;}
 
 <footer>BSD Business Brokers Israel | <a href="https://bsd-bbi.co.il">bsd-bbi.co.il</a> | ברוך איזון</footer>
 
+<script>window.BSD_SIGNING_PAGE = 'legacy';</script>
+<script src="bsd-signing-delivery.js?v=20261019"></script>
 <script>
 /* ─────────── GLOBALS ─────────── */
 let hasSigned = false, sigDataUrl = null, confirmTime = null;
@@ -642,8 +665,8 @@ async function submitForm() {
     return;
   }
   sigDataUrl = document.getElementById('sigCanvas').toDataURL('image/png');
-  const btn = document.querySelector('.btn-submit');
-  btn.disabled = true; btn.textContent = '⏳ שולח...';
+  const btn = document.querySelector('#mainContent .btn-submit');
+  if (btn) btn.disabled = true;
 
   const name   = document.getElementById('f_name').value;
   const biz    = document.getElementById('f_biz').value;
@@ -678,27 +701,29 @@ async function submitForm() {
 
 ✅ הלקוח קרא, אישר וחתם על ההסכם.`;
 
-  // שלח WhatsApp לברוך
+  // וואטסאפ נפתח רק אחרי שהשרת אישר, בלחיצה של הלקוח (בלי טיימר שמכניס את הדף לרקע).
   const waURL = 'https://wa.me/972542424999?text=' + encodeURIComponent(waMsg);
-  setTimeout(() => window.open(waURL, '_blank'), 1200);
 
-  // שלח FormSubmit
   // FormSubmit alias of info@bsd-bbi.co.il (activated 09.10.2026), so the address is not exposed in the page.
-  fetch('https://formsubmit.co/ajax/7844ae221246b75f1b700f26ba2338fd', {
-    method: 'POST',
+  await BsdSigningDelivery.begin({
+    pageKey: 'legacy',
+    endpoint: 'https://formsubmit.co/ajax/7844ae221246b75f1b700f26ba2338fd',
     headers: {'Content-Type':'application/json','Accept':'application/json'},
-    body: JSON.stringify({
-      _subject: 'הסכם חתום – '+name+' | '+biz,
-      _replyto: email,
-      _captcha: 'false',
-      'שם': name, 'עסק': biz, 'טלפון': phone,
-      'אימייל': email, 'כתובת': addr,
-      'מספר הסכם': cid, 'תאריך': sigTime,
-      'דמי פתיחה': ot+' ₪', 'עמלה': comm+'%',
+    requireEmailSent: false,
+    signerName: name,
+    waURL: waURL,
+    buildBody: async () => ({
+      body: {
+        _subject: 'הסכם חתום – '+name+' | '+biz,
+        _replyto: email,
+        _captcha: 'false',
+        'שם': name, 'עסק': biz, 'טלפון': phone,
+        'אימייל': email, 'כתובת': addr,
+        'מספר הסכם': cid, 'תאריך': sigTime,
+        'דמי פתיחה': ot+' ₪', 'עמלה': comm+'%',
+      }
     })
-  }).catch(e => console.warn('FormSubmit:', e));
-
-  showSuccess(name);
+  });
 }
 
 function showSuccess(name) {
@@ -734,16 +759,78 @@ function preparePrintArea(name,biz,id_n,entity,phone,email,addr,dt,cid,ot,comm,s
   document.getElementById('printLogo').src = logoSrc;
 }
 
-/* ─────────── PRINT / PDF ─────────── */
-function printContract() {
-  document.getElementById('printArea').style.display = 'block';
-  window.print();
-  // אחרי הדפסה – הסתר שוב
-  setTimeout(() => { document.getElementById('printArea').style.display = 'none'; }, 1000);
+/* ─────────── PDF BUILD (הורדה ידנית) ─────────── */
+function buildPdfDocument() {
+  return new Promise((resolve, reject) => {
+    const area = document.getElementById('printArea');
+    area.style.display = 'block';
+
+    const name = (document.getElementById('f_name').value || '').trim();
+    const now = new Date();
+    const dd=String(now.getDate()).padStart(2,'0'), mo=String(now.getMonth()+1).padStart(2,'0'), yyyy=now.getFullYear();
+    const filename = name+'-חתום-'+dd+'.'+mo+'.'+yyyy+'.pdf';
+
+    const images = Array.from(area.querySelectorAll('img'));
+    const waitForImages = Promise.all(images.map(img => {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      return new Promise(res => { img.onload = res; img.onerror = res; });
+    }));
+
+    waitForImages.then(() => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)))).then(() => {
+    const bsdPdfScale = (window.BsdSigningDelivery && BsdSigningDelivery.PDF_SCALE) || 1.2;
+    const bsdJpegQuality = (window.BsdSigningDelivery && BsdSigningDelivery.PDF_JPEG_QUALITY) || 0.66;
+    html2canvas(area, {
+      scale: bsdPdfScale,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      windowWidth: 900,
+    }).then(canvas => {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
+      const canvasW = canvas.width;
+      const canvasH = canvas.height;
+      const ratio = pdfW / canvasW;
+      const pageHeightPx = pdfH / ratio;
+      let y = 0;
+      while (y < canvasH) {
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvasW;
+        pageCanvas.height = Math.min(pageHeightPx, canvasH - y);
+        const ctx = pageCanvas.getContext('2d');
+        ctx.drawImage(canvas, 0, y, canvasW, pageCanvas.height, 0, 0, canvasW, pageCanvas.height);
+        const pageImg = pageCanvas.toDataURL('image/jpeg', bsdJpegQuality);
+        if (y > 0) pdf.addPage();
+        pdf.addImage(pageImg, 'JPEG', 0, 0, pdfW, pageCanvas.height * ratio);
+        y += pageHeightPx;
+      }
+      area.style.display = 'none';
+      resolve({ pdf, filename });
+    }).catch(err => {
+      area.style.display = 'none';
+      reject(err);
+    });
+    }).catch(err => {
+      area.style.display = 'none';
+      reject(err);
+    });
+  });
 }
 
-/* ─────────── BUILD PDF ─────────── */
-function buildPDFDoc() { return null; } // לא בשימוש
+function printContract() {
+  const btn = document.getElementById('printBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ מייצר PDF...'; }
+  return buildPdfDocument().then(({ pdf, filename }) => {
+    pdf.save(filename);
+    if (btn) { btn.disabled = false; btn.textContent = '🖨️ שמור / הדפס עותק PDF של ההסכם'; }
+  }).catch(err => {
+    console.error(err);
+    if (btn) { btn.disabled = false; btn.textContent = '🖨️ שמור / הדפס עותק PDF של ההסכם'; }
+    alert('שגיאה ביצירת PDF. נסה שוב.');
+  });
+}
 </script>
 </body>
 </html>
