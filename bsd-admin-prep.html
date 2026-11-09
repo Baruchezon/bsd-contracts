@@ -144,8 +144,8 @@ footer a{color:var(--navy);text-decoration:none;}
       </div>
 
       <div class="fg" id="wrap_biz">
-        <label id="lbl_biz">שם העסק <span class="req">*</span></label>
-        <input type="text" id="businessName" placeholder="שם העסק הרשום">
+        <label id="lbl_biz">שם תצוגה ב-CRM <span style="font-weight:400;color:#6b7280">(לא נשלח — הלקוח מקליד את השם המשפטי)</span></label>
+        <input type="text" id="businessName" placeholder="שם התצוגה בכרטיס, לעיון בלבד">
         <div class="field-error" id="e_biz">שדה חובה</div>
       </div>
 
@@ -231,7 +231,7 @@ footer a{color:var(--navy);text-decoration:none;}
       <div class="preview-row"><span class="pl">סוג הסכם:</span><span class="pv" id="pv_type">מוכר עסק</span></div>
       <div class="preview-row"><span class="pl">שם הלקוח:</span><span class="pv" id="pv_name">–</span></div>
       <div class="preview-row"><span class="pl">טלפון:</span><span class="pv" id="pv_phone">–</span></div>
-      <div class="preview-row" id="pvrow_biz"><span class="pl">שם העסק:</span><span class="pv" id="pv_biz">–</span></div>
+      <div class="preview-row" id="pvrow_biz"><span class="pl">שם תצוגה (לא נשלח):</span><span class="pv" id="pv_biz">–</span></div>
       <div class="preview-row" id="pvrow_pay"><span class="pl">תשלום חד-פעמי:</span><span class="pv" id="pv_pay">–</span></div>
       <div class="preview-row"><span class="pl">מינימום שכר הצלחה:</span><span class="pv" id="pv_minfee">–</span></div>
       <div class="preview-row" id="pvrow_comm_flat"><span class="pl">אחוז עמלה:</span><span class="pv" id="pv_comm">–</span></div>
@@ -531,7 +531,7 @@ function validate() {
   document.getElementById('errBanner').textContent = 'יש למלא את כל שדות החובה';
   function chk(id,eid){ const v=document.getElementById(id).value.trim(); const e=document.getElementById(eid); if(!v){document.getElementById(id).classList.add('error');e.classList.add('show');ok=false;}else{document.getElementById(id).classList.remove('error');e.classList.remove('show');} }
   chk('clientName','e_name'); chk('clientPhone','e_phone');
-  if (agreementType === 'seller') { chk('businessName','e_biz'); chk('oneTimePayment','e_pay'); }
+  if (agreementType === 'seller') { chk('oneTimePayment','e_pay'); document.getElementById('businessName').classList.remove('error'); document.getElementById('e_biz').classList.remove('show'); }
   chk('agreementDate','e_date');
 
   if (agreementType === 'broker') {
@@ -573,7 +573,7 @@ const bsdSupabase = window.supabase ? window.supabase.createClient(
 const NOTES_SAVE_ERROR = 'שמירת ההערות המיוחדות נכשלה. הקישור לא נוצר ולא נשלח, כדי שהטקסט לא ייחתך בוואטסאפ. נסו שוב.';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SIGNING_NOTES_IDENTITY_KEYS = new Set([
-  'type', 'clientName', 'name', 'clientPhone', 'phone', 'businessName', 'biz', 'recordId', 'brokerId'
+  'type', 'clientName', 'name', 'clientPhone', 'phone', 'businessName', 'biz', 'recordId', 'brokerId', 'pf', 'rid', 'rt', 'leadType'
 ]);
 
 function normalizeUuid(value) {
@@ -687,8 +687,20 @@ async function generate() {
   clearTimeout(notesInputTimer);
   try {
     const p = new URLSearchParams();
-    p.set('clientName', document.getElementById('clientName').value.trim());
-    p.set('clientPhone', document.getElementById('clientPhone').value.trim());
+    const prefillToken = agreementType === 'seller' ? await signerPrefillToken() : null;
+    if (prefillToken) {
+      p.set('pf', prefillToken);
+    } else {
+      p.set('clientName', document.getElementById('clientName').value.trim());
+      p.set('clientPhone', document.getElementById('clientPhone').value.trim());
+    }
+    const linkedId = currentRecordId();
+    if (agreementType === 'seller' && linkedId) {
+      p.set('rid', linkedId);
+      p.set('rt', waApiRecordTable());
+      const leadType = new URLSearchParams(window.location.search).get('leadType');
+      if (leadType === 'seller' || leadType === 'buyer' || leadType === 'partner') p.set('leadType', leadType);
+    }
 
     if (agreementType === 'broker') {
       const brokerId = document.getElementById('brokerId').value.trim();
@@ -712,7 +724,6 @@ async function generate() {
       p.set('agreementDate', document.getElementById('agreementDate').value);
     } else {
       if (agreementType === 'seller') {
-        p.set('businessName', document.getElementById('businessName').value.trim());
         p.set('oneTimePayment', numFrom('oneTimePayment'));
       }
       p.set('minFee', numFrom('minFee'));
@@ -824,6 +835,21 @@ async function sendWAApi() {
 // link, and carries one short respectful line plus a short BSD link (/go/<code>) that opens the same signing page.
 // The signing page and the signing flow are unchanged. If the short link cannot be created, the regular link is used.
 const WA_SHORT_LINK_BASE = 'https://zcdlegcvfirwzitfxjcs.supabase.co/functions/v1/go/';
+async function signerPrefillToken() {
+  try {
+    if (!bsdSupabase) return null;
+    const id = currentRecordId();
+    if (!id) return null;
+    const { data, error } = await bsdSupabase.rpc('create_agreement_signer_prefill', {
+      p_table: waApiRecordTable(), p_id: id
+    });
+    if (error || !data || !/^[A-Za-z0-9]{16,24}$/.test(String(data))) return null;
+    return String(data);
+  } catch (e) {
+    return null;
+  }
+}
+
 async function shortAgreementLink(url) {
   try {
     if (!bsdSupabase) return url;
