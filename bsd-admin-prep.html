@@ -336,6 +336,14 @@ const TYPE_TEXT = {
 };
 
 function setType(type) {
+  if (type !== agreementType) {
+    if (generatingLink) return;
+    currentURL = '';
+    clearTimeout(notesInputTimer);
+    savedNotesText = '';
+    savedNotesId = null;
+    document.getElementById('linkOut').classList.remove('show');
+  }
   agreementType = type;
   document.getElementById('typeBtnSeller').classList.toggle('active', type==='seller');
   document.getElementById('typeBtnBuyer').classList.toggle('active', type==='buyer');
@@ -625,11 +633,14 @@ function publishSigningUrl(baseURL, params, notesId) {
 async function saveAgreementLinkNotes(notes) {
   try {
     if (!bsdSupabase) throw new Error('חסר חיבור ל-Supabase');
+    const originalURL = currentURL;
+    const type = agreementType;
     const { data, error } = await bsdSupabase.rpc('save_agreement_link_notes', {
       p_notes: notes,
       p_record_id: currentRecordId(),
-      p_record_table: recordTableForType(agreementType)
+      p_record_table: recordTableForType(type)
     });
+    if (currentURL !== originalURL || agreementType !== type) return null;
     if (error || !data) throw error || new Error('לא התקבל מזהה');
     savedNotesText = notes;
     savedNotesId = String(data);
@@ -643,8 +654,9 @@ async function saveAgreementLinkNotes(notes) {
 
 async function applyNotesToGeneratedLink() {
   if (!currentURL) return false;
+  const originalURL = currentURL;
   let url;
-  try { url = new URL(currentURL); } catch (err) { return false; }
+  try { url = new URL(originalURL); } catch (err) { return false; }
   const notes = document.getElementById('notes').value.trim();
   let notesId = null;
   if (notes) {
@@ -657,7 +669,7 @@ async function applyNotesToGeneratedLink() {
     savedNotesText = '';
     savedNotesId = null;
   }
-  try { url = new URL(currentURL); } catch (err) { return false; }
+  if (currentURL !== originalURL) return false;
   const next = paramsWithNotesId(url.searchParams, notesId);
   const query = next.toString();
   currentURL = url.origin + url.pathname + (query ? '?' + query : '') + url.hash;
@@ -811,10 +823,12 @@ function waApiRecordTable() {
 async function sendWAApi() {
   const ok = await syncGeneratedNotesToLink();
   if (!ok || !currentURL) return;
+  const signingURL = currentURL;
   const recordId = currentRecordId();
   if (!recordId) { showPrepError('לא נמצא כרטיס CRM מקושר. פתחו את ההכנה מתוך הכרטיס ב-CRM.'); return; }
   if (!bsdSupabase) { showPrepError('אין חיבור ל-Supabase.'); return; }
   const { data } = await bsdSupabase.auth.getSession();
+  if (currentURL !== signingURL) return;
   const token = data && data.session && data.session.access_token;
   if (!token) { showPrepError('יש להתחבר ל-CRM בדפדפן הזה ואז לנסות שוב.'); return; }
   const btn = document.getElementById('btnWaApi');
@@ -822,7 +836,7 @@ async function sendWAApi() {
   try {
     const r = await fetch(WA_API_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token,
       'apikey': 'sb_publishable_baq54BVGwvtjB8c7ZiegCQ_tAXevwfN' }, body: JSON.stringify({ action: 'send_agreement',
-      record: { table: waApiRecordTable(), id: recordId }, signing_url: currentURL,
+      record: { table: waApiRecordTable(), id: recordId }, signing_url: signingURL,
       phone: document.getElementById('clientPhone').value.trim(), client_request_id: crypto.randomUUID() }) });
     const j = await r.json().catch(() => ({}));
     if (!j.ok) { showPrepError('השליחה מ-077 נכשלה: ' + (WA_API_ERRORS[j.error] || j.error || r.status)); return; }
