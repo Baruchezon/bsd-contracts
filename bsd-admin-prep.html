@@ -724,6 +724,7 @@ async function generate() {
       p.set('agreementDate', document.getElementById('agreementDate').value);
     } else {
       if (agreementType === 'seller') {
+        p.set('sellerTerms', '20261122');
         p.set('oneTimePayment', numFrom('oneTimePayment'));
       }
       p.set('minFee', numFrom('minFee'));
